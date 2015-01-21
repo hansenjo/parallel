@@ -1,0 +1,15 @@
+# Compiled stuff
+*.[od]
+lib*.so*
+
+# Generated files
+
+# Editor lint
+.#*
+*~
+\#*#
+
+# Work directory clutter, test files, replay output etc.
+*.png
+*.patch
+*.diff
