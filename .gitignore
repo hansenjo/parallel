@@ -3,6 +3,9 @@
 lib*.so*
 
 # Generated files
+*.dat
+ppodd
+generate
 
 # Editor lint
 .#*
@@ -13,3 +16,6 @@ lib*.so*
 *.png
 *.patch
 *.diff
+
+# Aux files
+rw.c
