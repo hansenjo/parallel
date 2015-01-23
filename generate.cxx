@@ -34,12 +34,12 @@ int main( int argc, char** argv )
     // Fill event with data values between -10 and +10
     for( uint32_t i = 0; i<evlength; ++i ) {
       double x = 20.0*drand48() - 10.0;
-      size_t stepsize = sizeof(x)/sizeof(evbuffer[0]);
+      const size_t stepsize = sizeof(x)/sizeof(evbuffer[0]);
       memcpy( evbuffer+hdrlen+stepsize*i, &x, sizeof(x) );
     }
     // Write the buffer
     size_t c = fwrite( evbuffer, 1, evbuffer[0], file );
-    if( c < 1 ) {
+    if( c != evbuffer[0] ) {
       cerr << "File write error at event " << iev << endl;
       fclose(file);
       exit(2);
