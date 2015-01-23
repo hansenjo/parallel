@@ -1,9 +1,10 @@
 // Prototype parallel processing analyzer
 
+#include "DataFile.h"
+#include "Decoder.h"
+
 #include <iostream>
 #include <pthread.h>
-#include "DataFile.h"
-#include <cstring>
 
 using namespace std;
 
@@ -20,7 +21,7 @@ int main( int argc, const char** argv )
 
   // Set up analysis object
 
-  // Copy analysis object into thread contexts 
+  // Copy analysis object into thread contexts
 
   // Start threads
 
@@ -31,31 +32,30 @@ int main( int argc, const char** argv )
   if( inp.Open() )
     return 1;
 
+  Decoder evdata;
+  
   unsigned long nev = 0;
   while( inp.ReadEvent() == 0 ) {
+    int status;
     ++nev;
     // Do some minimal decoding
-    uint32_t* evbuffer = inp.GetEvBuffer();
-    size_t evsize = evbuffer[0];
-    if( evsize < 8 ) {
-      cerr << "Event " << nev << ", bad event size = "
-	   << evsize << endl;
-      return 2;
-    }
-    uint32_t ndata = evbuffer[1];
-    cout << "Event " << nev << ", size = " << evsize << ", ndata = " << ndata;
-    if( ndata > 0 ) {
-      double x;
-      cout << ", data = ";
-      for( uint32_t i = 0; i < ndata; ++i ) {
-	const size_t stepsize = sizeof(x)/sizeof(evbuffer[0]);
-	memcpy( &x, evbuffer+2+stepsize*i, sizeof(double) );
-	cout << x;
-	if( i+1 != ndata )
-	  cout << ", ";
+    if( (status = evdata.Load( inp.GetEvBuffer() )) == 0 ) {
+      int ndata = evdata.GetNdata();
+      cout << "Event " << nev << ", size = " << evdata.GetEvSize()
+	   << ", ndata = " << ndata;
+      if( ndata > 0 ) {
+	cout << ", data = ";
+	for( int i = 0; i < ndata; ++i ) {
+	  cout << evdata.GetData(i);
+	  if( i+1 != ndata )
+	    cout << ", ";
+	}
       }
+      cout << endl;
+    } else {
+      cerr << "Decoding error = " << status << " at event " << nev << endl;
+      break;
     }
-    cout << endl;
   }
   cout << "Normal end of file" << endl;
   cout << "Read " << nev << " events" << endl;

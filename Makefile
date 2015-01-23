@@ -1,4 +1,4 @@
-SRC	= ppodd.cxx DataFile.cxx
+SRC	= ppodd.cxx DataFile.cxx Decoder.cxx
 OBJ	= $(SRC:.cxx=.o)
 DEP	= $(SRC:.cxx=.d)
 
