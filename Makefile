@@ -16,7 +16,7 @@ GENERATOR = generate
 
 all:		$(PROGRAM) $(GENERATOR)
 
-$(PROGRAM):	$(OBJ)
+$(PROGRAM):	$(OBJ) $(DEP)
 		$(CXX) $(CXXFLAGS) $(OBJ) $(LIBS) -o $@
 
 $(GENERATOR):	$(GENERATOR).o
