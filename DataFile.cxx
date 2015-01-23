@@ -5,10 +5,9 @@
 
 using namespace std;
 
-const int BUFSIZE = 256;
+const int BUFSIZE = 64;
 
-DataFile::DataFile( const char* fname )
-  : filename(fname), filep(0), buflen(0)
+DataFile::DataFile( const char* fname ) : filename(fname), filep(0)
 {
   // Constructor
 
@@ -43,40 +42,40 @@ int DataFile::Close()
     fclose(filep);
     filep = 0;
   }
-  buflen = 0;
   return 0;
 }
 
 int DataFile::ReadEvent()
 {
-  const size_t hdrlen = 2;
+  const size_t wordsize = sizeof(buffer[0]);
 
   int status = 0;
   if( !IsOpen() && (status = Open()) != 0 )
     return status;
 
+  clearerr(filep);
+
   // Read header
-  buflen = 0;
-  size_t c = fread( buffer, hdrlen, sizeof(buffer[0]), filep );
-  if( c != hdrlen ) {
+  size_t c = fread( buffer, 1, wordsize, filep );
+  if( c != wordsize ) {
+    if( feof(filep) )
+      return -1;
     cerr << "Error reading event header from file " << filename << endl;
     return 1;
   }
-  buflen += hdrlen*sizeof(buffer[0]);
   uint32_t evsize = buffer[0];
-  uint32_t evlength = buffer[1];
-  if( evsize > BUFSIZE*sizeof(buffer[0]) ) {
+  if( evsize > BUFSIZE*wordsize ) {
     cerr << "Event too large, size = " << evsize << endl;
     return 2;
   }
 
   // Read data
-  c = fread( buffer+hdrlen, evlength, sizeof(double), filep );
-  if( c != evlength ) {
+  c = fread( buffer+1, 1, evsize-wordsize, filep );
+  if( c != evsize-wordsize ) {
+    // EOF should never occur in the midst of the data
     cerr << "Error reading event data from file " << filename << endl;
     return 2;
   }
-  buflen += evlength*sizeof(double);
 
   return status;
 }

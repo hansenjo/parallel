@@ -15,7 +15,6 @@ public:
   int       Close();
 
   uint32_t* GetEvBuffer() const { return buffer; }
-  size_t    GetBufLen()   const { return buflen; }
   int       ReadEvent();
 
 private:
@@ -23,5 +22,4 @@ private:
   std::string filename;
   FILE*       filep;
   uint32_t*   buffer;   // Buffer for current event
-  size_t      buflen;   // Number of valid bytes in buffer
 };
