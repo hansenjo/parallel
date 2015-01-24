@@ -3,11 +3,12 @@ OBJ	= $(SRC:.cxx=.o)
 DEP	= $(SRC:.cxx=.d)
 
 DEFINES  =
-CXXFLAGS = -g -O0 -Wall
+CXXFLAGSST = -g -O0 -Wall
+CXXFLAGS = $(CXXFLAGSST) -pthread
 #CXXFLAGS = -O2 -DNDEBUG 
 CXXFLAGS += $(INCLUDES) $(DEFINES)
 #LIBS	= -Wl,-Bstatic -lboost_date_time -lboost_program_options -Wl,-Bdynamic
-LIBS    = -pthread
+LIBS    =
 
 PROGRAM = ppodd
 GENERATOR = generate
@@ -20,7 +21,10 @@ $(PROGRAM):	$(OBJ) $(DEP)
 		$(CXX) $(CXXFLAGS) $(OBJ) $(LIBS) -o $@
 
 $(GENERATOR):	$(GENERATOR).o
-		$(CXX) $(CXXFLAGS) $^ -o $@
+		$(CXX) $(CXXFLAGSST) $^ -o $@
+
+$(GENERATOR).o:	$(GENERATOR).cxx Makefile
+		$(CXX) -c $(CXXFLAGSST) -o $@ $<
 
 clean:
 		rm -f $(PROGRAM) *.o *~
