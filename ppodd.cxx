@@ -53,6 +53,8 @@ int main( int argc, const char** argv )
   detlst_t gDets;
   gDets.push_back( new Detector("det1") );
 
+  // Initialize analysis objects
+
   // Copy analysis object into thread contexts
   Context ctx;
   ctx.detectors = &gDets;

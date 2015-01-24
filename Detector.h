@@ -13,6 +13,7 @@ public:
   virtual ~Detector() {}
 
   void        Clear();
+  virtual int Init();
   virtual int Decode(  Decoder& evdata );
   virtual int Analyze( Decoder& evdata );
   void        Print() const;

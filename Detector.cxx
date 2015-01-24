@@ -14,6 +14,11 @@ void Detector::Clear()
 {
 }
 
+int Detector::Init()
+{
+  return 0;
+}
+
 int Detector::Decode( Decoder& evdata )
 {
 
