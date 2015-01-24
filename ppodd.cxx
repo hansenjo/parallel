@@ -2,11 +2,20 @@
 
 #include "DataFile.h"
 #include "Decoder.h"
+#include "Detector.h"
 
 #include <iostream>
 #include <pthread.h>
+#include <list>
 
 using namespace std;
+
+typedef list<Detector*> detlst_t;
+
+struct Context {
+  Decoder*  evdata;
+  detlst_t* detectors;
+};
 
 // Thread processing
 // Loop:
@@ -14,6 +23,24 @@ using namespace std;
 // - feed event data to defined analysis object(s)
 // - notify someone about end of processing
 
+int DoAnalysis( Context& ctx )
+{
+  // Process all defined analysis objects
+
+  for( detlst_t::iterator it = (*ctx.detectors).begin();
+       it != (*ctx.detectors).end(); ++it ) {
+    int status;
+    Detector* det = *it;
+
+    det->Clear();
+    if( (status = det->Decode(*ctx.evdata)) != 0 )
+      return status;
+    if( (status = det->Analyze(*ctx.evdata)) != 0 )
+      return status;
+  }
+
+  return 0;
+}
 
 int main( int argc, const char** argv )
 {
@@ -27,6 +54,11 @@ int main( int argc, const char** argv )
 
   // Loop: Read one event and hand it off to an idle thread
 
+  detlst_t gDets;
+  gDets.push_back( new Detector("det1") );
+
+  Context ctx;
+  ctx.detectors = &gDets;
 
   DataFile inp("test.dat");
   if( inp.Open() )
@@ -40,18 +72,12 @@ int main( int argc, const char** argv )
     ++nev;
     // Do some minimal decoding
     if( (status = evdata.Load( inp.GetEvBuffer() )) == 0 ) {
-      int ndata = evdata.GetNdata();
-      cout << "Event " << nev << ", size = " << evdata.GetEvSize()
-	   << ", ndata = " << ndata;
-      if( ndata > 0 ) {
-	cout << ", data = ";
-	for( int i = 0; i < ndata; ++i ) {
-	  cout << evdata.GetData(i);
-	  if( i+1 != ndata )
-	    cout << ", ";
-	}
+      cout << "Event " << nev << ", size = " << evdata.GetEvSize() << endl;
+      ctx.evdata = &evdata;
+      if( (status = DoAnalysis(ctx)) != 0 ) {
+	cerr << "Detector error = " << status << " at event " << nev << endl;
+	break;
       }
-      cout << endl;
     } else {
       cerr << "Decoding error = " << status << " at event " << nev << endl;
       break;
@@ -59,6 +85,8 @@ int main( int argc, const char** argv )
   }
   cout << "Normal end of file" << endl;
   cout << "Read " << nev << " events" << endl;
+
+  inp.Close();
 
   return 0;
 }

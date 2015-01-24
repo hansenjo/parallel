@@ -1,4 +1,4 @@
-SRC	= ppodd.cxx DataFile.cxx Decoder.cxx
+SRC	= ppodd.cxx DataFile.cxx Decoder.cxx Detector.cxx
 OBJ	= $(SRC:.cxx=.o)
 DEP	= $(SRC:.cxx=.d)
 
@@ -27,6 +27,9 @@ clean:
 
 realclean:	clean
 		rm -f *.d
+
+.SUFFIXES:
+.SUFFIXES: .cxx .o .d
 
 %.o:		%.cxx Makefile
 		$(CXX) -c $(CXXFLAGS) -o $@ $<
