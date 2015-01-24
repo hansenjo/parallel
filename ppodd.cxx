@@ -3,14 +3,16 @@
 #include "DataFile.h"
 #include "Decoder.h"
 #include "Detector.h"
+#include "Variable.h"
 
 #include <iostream>
 #include <pthread.h>
-#include <list>
+#include <vector>
 
 using namespace std;
 
-typedef list<Detector*> detlst_t;
+typedef vector<Detector*> detlst_t;
+typedef vector<Variable*> varlst_t;
 
 struct Context {
   Decoder*  evdata;
@@ -46,20 +48,17 @@ int main( int argc, const char** argv )
 {
   // Parse command line
 
-  // Set up analysis object
-
-  // Copy analysis object into thread contexts
-
-  // Start threads
-
-  // Loop: Read one event and hand it off to an idle thread
-
+  // Set up analysis objects
   detlst_t gDets;
   gDets.push_back( new Detector("det1") );
 
+  // Copy analysis object into thread contexts
   Context ctx;
   ctx.detectors = &gDets;
 
+  // Start threads
+
+  // Open input
   DataFile inp("test.dat");
   if( inp.Open() )
     return 1;
@@ -67,10 +66,11 @@ int main( int argc, const char** argv )
   Decoder evdata;
   
   unsigned long nev = 0;
+
+  // Loop: Read one event and hand it off to an idle thread
   while( inp.ReadEvent() == 0 ) {
     int status;
     ++nev;
-    // Do some minimal decoding
     if( (status = evdata.Load( inp.GetEvBuffer() )) == 0 ) {
       cout << "Event " << nev << ", size = " << evdata.GetEvSize() << endl;
       ctx.evdata = &evdata;
