@@ -1,4 +1,5 @@
 #ifndef PPODD_UTIL
+#define PPODD_UTIL
 
 #include <algorithm>
 

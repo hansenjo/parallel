@@ -1,6 +1,7 @@
 // Simple decoder for event buffer read from test data file
 
 #ifndef PPODD_DECODER
+#define PPODD_DECODER
 
 #include <stdint.h>
 #include <vector>

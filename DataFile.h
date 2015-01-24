@@ -2,6 +2,7 @@
 // Much simplified version of CodaFile
 
 #ifndef PPODD_DATAFILE
+#define PPODD_DATAFILE
 
 #include <stdint.h>
 #include <cstdio>

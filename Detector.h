@@ -1,6 +1,7 @@
 // Simple detector example class
 
 #ifndef PPODD_DETECTOR
+#define PPODD_DETECTOR
 
 #include <string>
 

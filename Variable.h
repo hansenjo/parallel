@@ -1,6 +1,7 @@
 // Simple class representing an analysis result ("global variable")
 
 #ifndef PPODD_VARIABLE
+#define PPODD_VARIABLE
 
 #include <string>
 
