@@ -15,10 +15,10 @@ void Detector::Clear()
 
 int Detector::Init()
 {
-  return 0;
+  return DefineVariables( kDefine );
 }
 
-int Detector::Analyze( Decoder& )
+int Detector::Analyze()
 {
   return 0;
 }
@@ -33,8 +33,8 @@ int Detector::DefineVariables( bool )
   return 0;
 }
 
-int Detector::DefineVariablesFromList( VarDef_t* defs, const char* prefix,
-				       bool remove, varlst_t& varlst )
+int Detector::DefineVarsFromList( VarDef_t* defs, const char* prefix,
+				  bool remove, varlst_t& varlst )
 {
   if( !defs )
     return 0;

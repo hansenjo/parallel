@@ -17,3 +17,10 @@ void Variable::Print() const
 {
   cout << "VAR: " << name << " \"" << note << "\" = " << GetValue() << endl;
 }
+
+void PrintVarList( varlst_t& varlst )
+{
+  for( varlst_t::iterator it = varlst.begin(); it != varlst.end(); ++it ) {
+    (*it)->Print();
+  }
+}

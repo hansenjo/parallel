@@ -13,6 +13,7 @@ struct VarDef_t {
   const char* note;
   const double* loc;
 };
+enum { kDefine = false, kRemove = true };
 
 class Detector {
 public:
@@ -22,7 +23,7 @@ public:
   virtual void Clear();
   virtual int  Init();
   virtual int  Decode(  Decoder& evdata ) = 0;
-  virtual int  Analyze( Decoder& evdata );
+  virtual int  Analyze();
   virtual void Print() const;
 
   const std::string& GetName() const { return name; }
@@ -34,8 +35,8 @@ protected:
 
   virtual int  DefineVariables( bool remove = false );
 
-  int DefineVariablesFromList( VarDef_t* defs, const char* prefix,
-			       bool remove = false, varlst_t& varlst = gVars );
+  int DefineVarsFromList( VarDef_t* defs, const char* prefix,
+			  bool remove = false, varlst_t& varlst = gVars );
 };
 
 #endif

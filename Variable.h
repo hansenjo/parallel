@@ -26,4 +26,6 @@ private:
 typedef std::list<Variable*> varlst_t;
 extern varlst_t gVars;
 
+void PrintVarList( varlst_t& varlst = gVars );
+
 #endif

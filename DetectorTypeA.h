@@ -4,21 +4,23 @@
 #define PPODD_DETECTORA
 
 #include "Detector.h"
+#include <vector>
 
 class Decoder;
 
 class DetectorTypeA : public Detector {
 public:
   DetectorTypeA( const char* name );
-  virtual ~DetectorTypeA() {}
+  virtual ~DetectorTypeA();
 
   virtual void Clear();
-  virtual int  Init();
   virtual int  Decode(  Decoder& evdata );
-  virtual int  Analyze( Decoder& evdata );
+  virtual int  Analyze();
   virtual void Print() const;
 
 protected:
+
+  std::vector<double> data;
   double sum;
   double min;
   double max;

@@ -18,6 +18,8 @@ typedef vector<Detector*> detlst_t;
 detlst_t gDets;
 varlst_t gVars;
 
+int debug = 2;
+
 struct Context {
   Decoder*  evdata;
   detlst_t* detectors;
@@ -41,7 +43,7 @@ int AnalyzeEvent( Context& ctx )
     det->Clear();
     if( (status = det->Decode(*ctx.evdata)) != 0 )
       return status;
-    if( (status = det->Analyze(*ctx.evdata)) != 0 )
+    if( (status = det->Analyze()) != 0 )
       return status;
   }
 
@@ -56,13 +58,20 @@ int main( int argc, const char** argv )
   gDets.push_back( new DetectorTypeA("detA") );
 
   // Initialize
+  int err = 0;
   for( detlst_t::iterator it = gDets.begin(); it != gDets.end(); ++it ) {
     int status;
     Detector* det = *it;
     if( (status = det->Init()) != 0 ) {
+      err = status;
       cerr << "Error initializing detector " << det->GetName() << endl;
     }
   }
+  if( err )
+    return 1;
+
+  if( debug > 0 )
+    PrintVarList();
 
   // Copy analysis object into thread contexts
   Context ctx;
@@ -73,7 +82,7 @@ int main( int argc, const char** argv )
   // Open input
   DataFile inp("test.dat");
   if( inp.Open() )
-    return 1;
+    return 2;
 
   Decoder evdata;
   
@@ -90,6 +99,8 @@ int main( int argc, const char** argv )
 	cerr << "Detector error = " << status << " at event " << nev << endl;
 	break;
       }
+      if( debug > 1 )
+	PrintVarList();
     } else {
       cerr << "Decoding error = " << status << " at event " << nev << endl;
       break;
