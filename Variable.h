@@ -1,5 +1,7 @@
 // Simple class representing an analysis result ("global variable")
 
+#ifndef PPODD_VARIABLE
+
 #include <string>
 
 class Variable {
@@ -15,3 +17,5 @@ private:
   double* loc;
 
 };
+
+#endif

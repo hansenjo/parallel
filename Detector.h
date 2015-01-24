@@ -1,5 +1,7 @@
 // Simple detector example class
 
+#ifndef PPODD_DETECTOR
+
 #include <string>
 
 class Decoder;
@@ -18,3 +20,5 @@ private:
   std::string name;
 
 };
+
+#endif

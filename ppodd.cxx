@@ -4,6 +4,7 @@
 #include "Decoder.h"
 #include "Detector.h"
 #include "Variable.h"
+#include "Util.h"
 
 #include <iostream>
 #include <pthread.h>
@@ -87,6 +88,8 @@ int main( int argc, const char** argv )
   cout << "Read " << nev << " events" << endl;
 
   inp.Close();
+
+  DeleteContainer( gDets );
 
   return 0;
 }

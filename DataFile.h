@@ -1,6 +1,8 @@
 // Interface for reading a data file for parallelization test
 // Much simplified version of CodaFile
 
+#ifndef PPODD_DATAFILE
+
 #include <stdint.h>
 #include <cstdio>
 #include <string>
@@ -23,3 +25,5 @@ private:
   FILE*       filep;
   uint32_t*   buffer;   // Buffer for current event
 };
+
+#endif
