@@ -37,3 +37,5 @@ realclean:	clean
 			| sed '\''s%\($*\)\.o[ :]*%\1.o $@ : %g'\'' > $@; \
 			[ -s $@ ] || rm -f $@'
 
+
+-include $(DEP)
