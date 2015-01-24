@@ -2,7 +2,7 @@
 
 #include "DataFile.h"
 #include "Decoder.h"
-#include "Detector.h"
+#include "DetectorTypeA.h"
 #include "Variable.h"
 #include "Util.h"
 
@@ -13,7 +13,10 @@
 using namespace std;
 
 typedef vector<Detector*> detlst_t;
-typedef vector<Variable*> varlst_t;
+
+// Legacy global lists
+detlst_t gDets;
+varlst_t gVars;
 
 struct Context {
   Decoder*  evdata;
@@ -26,7 +29,7 @@ struct Context {
 // - feed event data to defined analysis object(s)
 // - notify someone about end of processing
 
-int DoAnalysis( Context& ctx )
+int AnalyzeEvent( Context& ctx )
 {
   // Process all defined analysis objects
 
@@ -50,10 +53,16 @@ int main( int argc, const char** argv )
   // Parse command line
 
   // Set up analysis objects
-  detlst_t gDets;
-  gDets.push_back( new Detector("det1") );
+  gDets.push_back( new DetectorTypeA("detA") );
 
-  // Initialize analysis objects
+  // Initialize
+  for( detlst_t::iterator it = gDets.begin(); it != gDets.end(); ++it ) {
+    int status;
+    Detector* det = *it;
+    if( (status = det->Init()) != 0 ) {
+      cerr << "Error initializing detector " << det->GetName() << endl;
+    }
+  }
 
   // Copy analysis object into thread contexts
   Context ctx;
@@ -77,7 +86,7 @@ int main( int argc, const char** argv )
     if( (status = evdata.Load( inp.GetEvBuffer() )) == 0 ) {
       cout << "Event " << nev << ", size = " << evdata.GetEvSize() << endl;
       ctx.evdata = &evdata;
-      if( (status = DoAnalysis(ctx)) != 0 ) {
+      if( (status = AnalyzeEvent(ctx)) != 0 ) {
 	cerr << "Detector error = " << status << " at event " << nev << endl;
 	break;
       }

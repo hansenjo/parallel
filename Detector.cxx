@@ -1,12 +1,11 @@
-// Simple detector class
+// Simple detector base class
 
 #include "Detector.h"
-#include "Decoder.h"
 #include <iostream>
 
 using namespace std;
 
-Detector::Detector( const char* _name ) : name(_name)
+Detector::Detector( const char* _name ) : name(_name), type("abstract")
 {
 }
 
@@ -19,31 +18,62 @@ int Detector::Init()
   return 0;
 }
 
-int Detector::Decode( Decoder& evdata )
+int Detector::Analyze( Decoder& )
 {
-
-  int ndata = evdata.GetNdata();
-  cout << "DET: " << name << ", ndata = " << ndata;
-  if( ndata > 0 ) {
-    cout << ", data = ";
-    for( int i = 0; i < ndata; ++i ) {
-      cout << evdata.GetData(i);
-      if( i+1 != ndata )
-	cout << ", ";
-    }
-  }
-  cout << endl;
-
-  return 0;
-}
-
-int Detector::Analyze( Decoder& /* evdata */ )
-{
-
   return 0;
 }
 
 void Detector::Print() const
 {
+  cout << "DET(" << type << "): " << name << endl;
+}
 
+int Detector::DefineVariables( bool )
+{
+  return 0;
+}
+
+int Detector::DefineVariablesFromList( VarDef_t* defs, const char* prefix,
+				       bool remove, varlst_t& varlst )
+{
+  if( !defs )
+    return 0;
+
+  int ndef = 0;
+  VarDef_t* def = defs;
+  while( def->name ) {
+    varlst_t::iterator it = varlst.begin();
+    for( ; it != varlst.end(); ++it ) {
+      if( (*it)->GetName() == def->name ) {
+	break;
+      }
+    }
+    if( remove ) {
+      if( it != varlst.end() ) {
+	delete *it;
+	varlst.erase(it);
+	++ndef;
+      }
+    } else {
+      if( it != varlst.end() ) {
+	cerr << "Variable " << def->name << " already exists"
+	  ", skipped" << endl;
+      } else if( !def->loc ) {
+	cerr << "Invalid location pointer for variable " << def->name
+	     << ", skipped " << endl;
+      } else {
+	string varname;
+	if( prefix && *prefix ) {
+	  varname.append(prefix);
+	  varname.append(".");
+	}
+	varname.append(def->name);
+	varlst.push_back( new Variable(def->name, def->note, def->loc) );
+	++ndef;
+      }
+    }
+    ++def;
+  }
+
+  return ndef;
 }
