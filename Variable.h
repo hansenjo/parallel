@@ -3,7 +3,6 @@
 #ifndef PPODD_VARIABLE
 #define PPODD_VARIABLE
 
-#include "Podd.h"
 #include <string>
 
 class Variable {
@@ -21,7 +20,5 @@ private:
   const double* loc;
 
 };
-
-void PrintVarList( varlst_t& varlst );
 
 #endif

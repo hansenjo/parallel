@@ -1,5 +1,6 @@
 // Simple variable class
 
+#include "Podd.h"
 #include "Variable.h"
 #include <iostream>
 #include <cassert>
@@ -18,6 +19,7 @@ void Variable::Print() const
   cout << "VAR: " << name << " \"" << note << "\" = " << GetValue() << endl;
 }
 
+// Declared in Podd.h
 void PrintVarList( varlst_t& varlst )
 {
   for( varlst_t::iterator it = varlst.begin(); it != varlst.end(); ++it ) {

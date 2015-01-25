@@ -1,6 +1,8 @@
 // Simple detector base class
 
+#include "Podd.h"
 #include "Detector.h"
+#include "Variable.h"
 #include <iostream>
 
 using namespace std;
@@ -33,8 +35,9 @@ int Detector::DefineVariables( bool )
   return 0;
 }
 
-int Detector::DefineVarsFromList( VarDef_t* defs, const char* prefix,
-				  varlst_t& varlst, bool remove )
+// Declared in Podd.h
+int DefineVarsFromList( VarDef_t* defs, const char* prefix,
+			varlst_t& varlst, bool remove )
 {
   if( !defs )
     return 0;

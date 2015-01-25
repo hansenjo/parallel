@@ -9,22 +9,21 @@
 
 #include <iostream>
 #include <pthread.h>
-#include <vector>
 
 using namespace std;
 
-// Legacy global lists
+// Definitions for items declared in Podd.h
 detlst_t gDets;
 varlst_t gVars;
 
 int debug = 3;
 
+// Thread processing
 struct Context {
   Decoder*  evdata;
   detlst_t* detectors;
 };
 
-// Thread processing
 // Loop:
 // - wait for data
 // - feed event data to defined analysis object(s)
@@ -92,6 +91,7 @@ int main( int argc, const char** argv )
     int status;
     ++nev;
     if( (status = evdata.Load( inp.GetEvBuffer() )) == 0 ) {
+      // Main processing
       if( debug > 1 )
 	cout << "Event " << nev << ", size = " << evdata.GetEvSize() << endl;
       ctx.evdata = &evdata;

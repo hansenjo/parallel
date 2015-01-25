@@ -3,18 +3,9 @@
 #ifndef PPODD_DETECTOR
 #define PPODD_DETECTOR
 
-#include "Podd.h"
-#include "Variable.h"
 #include <string>
 
 class Decoder;
-
-struct VarDef_t {
-  const char* name;
-  const char* note;
-  const double* loc;
-};
-enum { kDefine = false, kRemove = true };
 
 class Detector {
 public:
@@ -35,9 +26,6 @@ protected:
   std::string type;
 
   virtual int  DefineVariables( bool remove = false );
-
-  int DefineVarsFromList( VarDef_t* defs, const char* prefix,
-			  varlst_t& varlst, bool remove = false );
 };
 
 #endif

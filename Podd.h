@@ -18,4 +18,17 @@ extern varlst_t gVars;
 
 extern int debug;
 
+// Non-class specific functions
+struct VarDef_t {
+  const char* name;
+  const char* note;
+  const double* loc;
+};
+enum { kDefine = false, kRemove = true };
+
+int DefineVarsFromList( VarDef_t* defs, const char* prefix,
+			varlst_t& varlst, bool remove = false );
+
+void PrintVarList( varlst_t& varlst );
+
 #endif
