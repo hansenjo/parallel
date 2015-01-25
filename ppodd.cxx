@@ -1,5 +1,6 @@
 // Prototype parallel processing analyzer
 
+#include "Podd.h"
 #include "DataFile.h"
 #include "Decoder.h"
 #include "DetectorTypeA.h"
@@ -12,13 +13,11 @@
 
 using namespace std;
 
-typedef vector<Detector*> detlst_t;
-
 // Legacy global lists
 detlst_t gDets;
 varlst_t gVars;
 
-int debug = 2;
+int debug = 3;
 
 struct Context {
   Decoder*  evdata;
@@ -71,7 +70,7 @@ int main( int argc, const char** argv )
     return 1;
 
   if( debug > 0 )
-    PrintVarList();
+    PrintVarList(gVars);
 
   // Copy analysis object into thread contexts
   Context ctx;
@@ -85,7 +84,7 @@ int main( int argc, const char** argv )
     return 2;
 
   Decoder evdata;
-  
+
   unsigned long nev = 0;
 
   // Loop: Read one event and hand it off to an idle thread
@@ -93,14 +92,15 @@ int main( int argc, const char** argv )
     int status;
     ++nev;
     if( (status = evdata.Load( inp.GetEvBuffer() )) == 0 ) {
-      cout << "Event " << nev << ", size = " << evdata.GetEvSize() << endl;
+      if( debug > 1 )
+	cout << "Event " << nev << ", size = " << evdata.GetEvSize() << endl;
       ctx.evdata = &evdata;
       if( (status = AnalyzeEvent(ctx)) != 0 ) {
 	cerr << "Detector error = " << status << " at event " << nev << endl;
 	break;
       }
       if( debug > 1 )
-	PrintVarList();
+	PrintVarList(gVars);
     } else {
       cerr << "Decoding error = " << status << " at event " << nev << endl;
       break;

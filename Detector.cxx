@@ -34,7 +34,7 @@ int Detector::DefineVariables( bool )
 }
 
 int Detector::DefineVarsFromList( VarDef_t* defs, const char* prefix,
-				  bool remove, varlst_t& varlst )
+				  varlst_t& varlst, bool remove )
 {
   if( !defs )
     return 0;

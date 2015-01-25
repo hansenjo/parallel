@@ -3,6 +3,7 @@
 #ifndef PPODD_DETECTOR
 #define PPODD_DETECTOR
 
+#include "Podd.h"
 #include "Variable.h"
 #include <string>
 
@@ -36,7 +37,7 @@ protected:
   virtual int  DefineVariables( bool remove = false );
 
   int DefineVarsFromList( VarDef_t* defs, const char* prefix,
-			  bool remove = false, varlst_t& varlst = gVars );
+			  varlst_t& varlst, bool remove = false );
 };
 
 #endif

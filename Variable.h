@@ -3,13 +3,12 @@
 #ifndef PPODD_VARIABLE
 #define PPODD_VARIABLE
 
+#include "Podd.h"
 #include <string>
-#include <list>
 
 class Variable {
 public:
   Variable( const char* name, const char* note, const double* loc );
-  virtual ~Variable() {}
 
   const std::string& GetName() const { return name; }
   const std::string& GetNote() const { return note; }
@@ -23,9 +22,6 @@ private:
 
 };
 
-typedef std::list<Variable*> varlst_t;
-extern varlst_t gVars;
-
-void PrintVarList( varlst_t& varlst = gVars );
+void PrintVarList( varlst_t& varlst );
 
 #endif
