@@ -9,6 +9,8 @@
 #include "Util.h"
 
 #include <iostream>
+#include <climits>
+#include <unistd.h>
 #include <pthread.h>
 
 using namespace std;
@@ -17,8 +19,8 @@ using namespace std;
 detlst_t gDets;
 varlst_t gVars;
 
-int debug = 3;
-int compress_output = 1;
+int debug = 0;
+int compress_output = 0;
 
 // Thread processing
 struct Context {
@@ -50,9 +52,69 @@ int AnalyzeEvent( Context& ctx )
   return 0;
 }
 
-int main( int argc, const char** argv )
+static string prgname;
+
+void usage()
+{
+  cerr << "Usage: " << prgname << " [options] input_file" << endl
+       << "where options are:" << endl
+       << " [ -c odef_file ]\tread output definitions from odef_file"
+       << " (default = " << prgname << ".odef)" << endl
+       << " [ -o outfile ]\t\twrite output to odat_file"
+       << " (default = " << prgname << ".odat)" << endl
+       << " [ -d debug_level ]\tset debug level" << endl
+       << " [ -n nev_max ]\t\tset max number of events" << endl
+       << " [ -m ]\t\t\tMark progress" << endl
+       << " [ -z ]\t\t\tCompress output with gzip" << endl
+       << " [ -h ]\t\t\tPrint this help message" << endl;
+  exit(255);
+}
+
+int main( int argc, char* const *argv )
 {
   // Parse command line
+  unsigned long nev_max = ULONG_MAX;
+  int opt;
+  bool mark = false;
+  string input_file = "";
+  string odef_file = "ppodd.odef";
+  string odat_file = "ppodd.odat";
+
+  prgname = argv[0];
+  if( prgname.size() >= 2 && prgname.substr(0,2) == "./" )
+    prgname.erase(0,2);
+
+  while( (opt = getopt(argc, argv, "c:d:n:o:zmh")) != -1 ) {
+    switch (opt) {
+    case 'c':
+      odef_file = optarg;
+      break;
+    case 'd':
+      debug = atoi(optarg);
+      break;
+    case 'n':
+      nev_max = atoi(optarg);
+      break;
+    case 'o':
+      odat_file = optarg;
+      break;
+    case 'z':
+      compress_output = 1;
+      break;
+    case 'm':
+      mark = true;
+      break;
+    case 'h':
+    default:
+      usage();
+      break;
+    }
+  }
+  if( optind >= argc ) {
+    cerr << "Input file name missing" << endl;
+    usage();
+  }
+  input_file = argv[optind];
 
   // Set up analysis objects
   gDets.push_back( new DetectorTypeA("detA") );
@@ -80,13 +142,16 @@ int main( int argc, const char** argv )
   // Start threads
 
   // Open input
-  DataFile inp("test.dat");
+  DataFile inp(input_file.c_str());
   if( inp.Open() )
     return 2;
 
   // Configure output
   Output output;
-  if( output.Init("test.odat", "test.odef", gVars) != 0 ) {
+  if( compress_output > 0 && odat_file.size() > 3
+      && odat_file.substr(odat_file.size()-3) != ".gz" )
+    odat_file.append(".gz");
+  if( output.Init(odat_file.c_str(), odef_file.c_str(), gVars) != 0 ) {
     inp.Close();
     return 3;
   }
@@ -96,9 +161,11 @@ int main( int argc, const char** argv )
   unsigned long nev = 0;
 
   // Loop: Read one event and hand it off to an idle thread
-  while( inp.ReadEvent() == 0 ) {
+  while( inp.ReadEvent() == 0 && nev < nev_max ) {
     int status;
     ++nev;
+    if( mark && (nev%1000) == 0 )
+      cout << nev << endl;
     if( (status = evdata.Load( inp.GetEvBuffer() )) == 0 ) {
       // Main processing
       if( debug > 1 )
@@ -124,8 +191,10 @@ int main( int argc, const char** argv )
       break;
     }
   }
-  cout << "Normal end of file" << endl;
-  cout << "Read " << nev << " events" << endl;
+  if( debug > 0 ) {
+    cout << "Normal end of file" << endl;
+    cout << "Read " << nev << " events" << endl;
+  }
 
   inp.Close();
   output.Close();
