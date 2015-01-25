@@ -42,9 +42,15 @@ int Detector::DefineVarsFromList( VarDef_t* defs, const char* prefix,
   int ndef = 0;
   VarDef_t* def = defs;
   while( def->name ) {
+    string varname;
+    if( prefix && *prefix ) {
+      varname.append(prefix);
+      varname.append(".");
+    }
+    varname.append(def->name);
     varlst_t::iterator it = varlst.begin();
     for( ; it != varlst.end(); ++it ) {
-      if( (*it)->GetName() == def->name ) {
+      if( (*it)->GetName() == varname ) {
 	break;
       }
     }
@@ -56,19 +62,13 @@ int Detector::DefineVarsFromList( VarDef_t* defs, const char* prefix,
       }
     } else {
       if( it != varlst.end() ) {
-	cerr << "Variable " << def->name << " already exists"
+	cerr << "Variable " << varname << " already exists"
 	  ", skipped" << endl;
       } else if( !def->loc ) {
-	cerr << "Invalid location pointer for variable " << def->name
+	cerr << "Invalid location pointer for variable " << varname
 	     << ", skipped " << endl;
       } else {
-	string varname;
-	if( prefix && *prefix ) {
-	  varname.append(prefix);
-	  varname.append(".");
-	}
-	varname.append(def->name);
-	varlst.push_back( new Variable(def->name, def->note, def->loc) );
+	varlst.push_back( new Variable(varname.c_str(), def->note, def->loc) );
 	++ndef;
       }
     }
