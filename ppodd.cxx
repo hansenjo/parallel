@@ -85,8 +85,7 @@ int main( int argc, const char** argv )
 
   Decoder evdata;
   Output output;
-  output.Define("test.odef");
-  output.SetOutFile("test.odat");
+  output.Init("test.odat", "test.odef", gVars);
 
   unsigned long nev = 0;
 
@@ -98,16 +97,20 @@ int main( int argc, const char** argv )
       // Main processing
       if( debug > 1 )
 	cout << "Event " << nev << ", size = " << evdata.GetEvSize() << endl;
+
       ctx.evdata = &evdata;
       if( (status = AnalyzeEvent(ctx)) != 0 ) {
 	cerr << "Detector error = " << status << " at event " << nev << endl;
 	break;
       }
+
       if( debug > 1 )
 	PrintVarList(gVars);
-      // Write output
 
-    } else {
+      // Write output
+      output.Process();
+    }
+    else {
       cerr << "Decoding error = " << status << " at event " << nev << endl;
       break;
     }
@@ -116,6 +119,7 @@ int main( int argc, const char** argv )
   cout << "Read " << nev << " events" << endl;
 
   inp.Close();
+  output.Close();
 
   DeleteContainer( gDets );
 
