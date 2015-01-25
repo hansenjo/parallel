@@ -21,6 +21,7 @@ public:
 protected:
 
   std::vector<double> data;
+  double nval;
   double sum;
   double min;
   double max;

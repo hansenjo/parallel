@@ -22,6 +22,7 @@ void DetectorTypeA::Clear()
 {
   Detector::Clear();
   data.clear();
+  nval = 0;
   sum = mean = geom = 0;
   min = 1e38;
   max = -min;
@@ -48,6 +49,8 @@ int DetectorTypeA::Decode( Decoder& evdata )
   }
   if( debug > 2 )
     cout << endl;
+
+  nval = ndata;
 
   return 0;
 }
@@ -81,6 +84,7 @@ void DetectorTypeA::Print() const
 int DetectorTypeA::DefineVariables( bool do_remove )
 {
   VarDef_t defs[] = {
+    { "nval", "Number of data values processed", &nval },
     { "sum",  "Sum of data",            &sum },
     { "min",  "Minimum of data",        &min },
     { "max",  "Maximum of data",        &max },
