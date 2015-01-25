@@ -1,0 +1,5 @@
+# -*- mode: conf -*-
+#
+# Example output definitions for analyzer parallelization demo
+
+detA.*
