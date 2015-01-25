@@ -30,22 +30,24 @@ void DetectorTypeA::Clear()
 int DetectorTypeA::Decode( Decoder& evdata )
 {
   int ndata = evdata.GetNdata();
-  Print();
   if( debug > 1 )
+    Print();
+  if( debug > 2 )
     cout << " Decode: ndata = " << ndata;
   if( ndata > 0 ) {
-    if( debug > 2 )
+    if( debug > 3 )
       cout << ", data = ";
     for( int i = 0; i < ndata; ++i ) {
       data.push_back(evdata.GetData(i));
-      if( debug > 2 ) {
+      if( debug > 3 ) {
 	cout << evdata.GetData(i);
 	if( i+1 != ndata )
 	  cout << ", ";
       }
     }
   }
-  cout << endl;
+  if( debug > 2 )
+    cout << endl;
 
   return 0;
 }
