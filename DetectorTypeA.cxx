@@ -1,5 +1,6 @@
 // Simple detector class
 
+#include "Podd.h"
 #include "DetectorTypeA.h"
 #include "Decoder.h"
 #include <iostream>
@@ -28,17 +29,20 @@ void DetectorTypeA::Clear()
 
 int DetectorTypeA::Decode( Decoder& evdata )
 {
-
   int ndata = evdata.GetNdata();
   Print();
-  cout << " Decode: ndata = " << ndata;
+  if( debug > 1 )
+    cout << " Decode: ndata = " << ndata;
   if( ndata > 0 ) {
-    cout << ", data = ";
+    if( debug > 2 )
+      cout << ", data = ";
     for( int i = 0; i < ndata; ++i ) {
-      cout << evdata.GetData(i);
-      if( i+1 != ndata )
-	cout << ", ";
       data.push_back(evdata.GetData(i));
+      if( debug > 2 ) {
+	cout << evdata.GetData(i);
+	if( i+1 != ndata )
+	  cout << ", ";
+      }
     }
   }
   cout << endl;
@@ -48,21 +52,20 @@ int DetectorTypeA::Decode( Decoder& evdata )
 
 int DetectorTypeA::Analyze()
 {
-  // This detector type compute some basic statistics of the raw data
+  // This detector type computes some basic statistics of the raw data
 
   typedef vector<double> vec_t;
   if( !data.empty() ) {
     double n = double(data.size());
-    geom = 1.0;
     for( vec_t::size_type i = 0; i < data.size(); ++i ) {
       double x = data[i];
       sum += x;
       if( x < min ) min = x;
       if( x > max ) max = x;
-      geom *= x;
+      geom += log(fabs(x));
     }
     mean = sum/n;
-    geom = pow(fabs(geom), 1./n);
+    geom = exp(geom/n);
   }
 
   return 0;
@@ -83,6 +86,6 @@ int DetectorTypeA::DefineVariables( bool do_remove )
     { "geom", "Geometric mean of data", &geom },
     { 0 }
   };
-  DefineVarsFromList( defs, GetName().c_str(), do_remove );
+  DefineVarsFromList( defs, GetName().c_str(), gVars, do_remove );
   return 0;
 }
