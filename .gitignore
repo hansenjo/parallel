@@ -2,8 +2,12 @@
 *.[od]
 lib*.so*
 
-# Generated files
+# Input files
 *.dat
+*.odef
+
+# Generated files
+*.odat
 ppodd
 generate
 

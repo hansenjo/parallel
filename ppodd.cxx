@@ -5,6 +5,7 @@
 #include "Decoder.h"
 #include "DetectorTypeA.h"
 #include "Variable.h"
+#include "Output.h"
 #include "Util.h"
 
 #include <iostream>
@@ -83,6 +84,9 @@ int main( int argc, const char** argv )
     return 2;
 
   Decoder evdata;
+  Output output;
+  output.Define("test.odef");
+  output.SetOutFile("test.odat");
 
   unsigned long nev = 0;
 
@@ -101,6 +105,8 @@ int main( int argc, const char** argv )
       }
       if( debug > 1 )
 	PrintVarList(gVars);
+      // Write output
+
     } else {
       cerr << "Decoding error = " << status << " at event " << nev << endl;
       break;
