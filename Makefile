@@ -9,7 +9,7 @@ CXXFLAGS = $(CXXFLAGSST) -pthread
 #CXXFLAGS = -O2 -DNDEBUG 
 CXXFLAGS += $(INCLUDES) $(DEFINES)
 #LIBS	= -Wl,-Bstatic -lboost_date_time -lboost_program_options -Wl,-Bdynamic
-LIBS    =
+LIBS    = -lboost_iostreams
 
 PROGRAM = ppodd
 GENERATOR = generate

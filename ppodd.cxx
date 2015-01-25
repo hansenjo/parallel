@@ -18,6 +18,7 @@ detlst_t gDets;
 varlst_t gVars;
 
 int debug = 3;
+int compress_output = 1;
 
 // Thread processing
 struct Context {
@@ -83,9 +84,14 @@ int main( int argc, const char** argv )
   if( inp.Open() )
     return 2;
 
-  Decoder evdata;
+  // Configure output
   Output output;
-  output.Init("test.odat", "test.odef", gVars);
+  if( output.Init("test.odat", "test.odef", gVars) != 0 ) {
+    inp.Close();
+    return 3;
+  }
+
+  Decoder evdata;
 
   unsigned long nev = 0;
 
@@ -108,7 +114,10 @@ int main( int argc, const char** argv )
 	PrintVarList(gVars);
 
       // Write output
-      output.Process();
+      if( (status = output.Process(nev)) != 0 ) {
+	cerr << "Output error = " << status << endl;
+	break;
+      }
     }
     else {
       cerr << "Decoding error = " << status << " at event " << nev << endl;

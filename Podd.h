@@ -17,6 +17,7 @@ extern detlst_t gDets;
 extern varlst_t gVars;
 
 extern int debug;
+extern int compress_output;
 
 // Non-class specific functions
 struct VarDef_t {
