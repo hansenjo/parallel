@@ -29,7 +29,7 @@ static void usage()
 int main( int argc, char** argv )
 {
   const char* filename = "";
-  const int SIZE = 256;
+  const size_t SIZE = 1024;
   const long int seed = 87934;
   int debug = 0;
   int NEVT = 10000;
@@ -46,6 +46,10 @@ int main( int argc, char** argv )
     switch (opt) {
     case 'c':
       NDET = atoi(optarg);
+      if( NDET > MAXMODULES ) {
+	cerr << "Too many detectors, max " << MAXMODULES << endl;
+	exit(255);
+      }
       break;
     case 'd':
       debug = atoi(optarg);
@@ -95,6 +99,13 @@ int main( int argc, char** argv )
 	data[i] = 20.0*drand48() - 10.0;
       // Calculate module data size
       modhdr.module_length = sizeof(modhdr) + ndata*sizeof(data[0]);
+      size_t size_now = modhdr.module_length + evtp-(char*)&evbuffer[0];
+      if( size_now > SIZE*sizeof(evbuffer[0]) ) {
+	cerr << "Event too large, nev = " << iev
+	     << ", size = " << size_now << endl;
+	fclose(file);
+	exit(2);
+      }
       // Write module info to eventbuffer
       memcpy( evtp, &modhdr, sizeof(modhdr) );
       evtp += sizeof(modhdr);
