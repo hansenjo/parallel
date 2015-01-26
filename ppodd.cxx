@@ -54,14 +54,26 @@ int AnalyzeEvent( Context& ctx )
 
 static string prgname;
 
-void usage()
+static void default_names( string infile, string& odef, string& odat )
 {
-  cerr << "Usage: " << prgname << " [options] input_file" << endl
+  // If not given, set defaults for odef and output files
+  string::size_type pos = infile.rfind('.');
+  if( pos != string::npos )
+    infile.erase(pos);
+  if( odef.empty() )
+    odef = infile + ".odef";
+  if( odat.empty() )
+    odat = infile + ".odat";
+}
+
+static void usage()
+{
+  cerr << "Usage: " << prgname << " [options] input_file.dat" << endl
        << "where options are:" << endl
        << " [ -c odef_file ]\tread output definitions from odef_file"
-       << " (default = " << prgname << ".odef)" << endl
+       << " (default = input_file.odef)" << endl
        << " [ -o outfile ]\t\twrite output to odat_file"
-       << " (default = " << prgname << ".odat)" << endl
+       << " (default = input_file.odat)" << endl
        << " [ -d debug_level ]\tset debug level" << endl
        << " [ -n nev_max ]\t\tset max number of events" << endl
        << " [ -m ]\t\t\tMark progress" << endl
@@ -76,9 +88,7 @@ int main( int argc, char* const *argv )
   unsigned long nev_max = ULONG_MAX;
   int opt;
   bool mark = false;
-  string input_file = "";
-  string odef_file = "ppodd.odef";
-  string odat_file = "ppodd.odat";
+  string input_file, odef_file, odat_file;
 
   prgname = argv[0];
   if( prgname.size() >= 2 && prgname.substr(0,2) == "./" )
@@ -116,8 +126,11 @@ int main( int argc, char* const *argv )
   }
   input_file = argv[optind];
 
+  default_names( input_file, odef_file, odat_file );
+
   // Set up analysis objects
   gDets.push_back( new DetectorTypeA("detA") );
+  //TODO: gDets.push_back( new DetectorTypeB("B") );
 
   // Initialize
   int err = 0;
