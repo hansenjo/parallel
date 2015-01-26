@@ -78,7 +78,7 @@ int main( int argc, char** argv )
   // Generate event data
   for( int iev = 0; iev < NEVT; ++iev ) {
     EventHeader evthdr;
-    evthdr.event_info = 0;
+    evthdr.event_info = NDET;
     char* evtp = (char*)evbuffer;
     memcpy( evtp, &evthdr, sizeof(evthdr) );
     evtp += sizeof(evthdr);
@@ -103,7 +103,7 @@ int main( int argc, char** argv )
     }
     // Calculate total event length
     evbuffer[0] = evtp-(char*)&evbuffer[0];
-    // Write the buffer
+    // Write the buffer to file
     size_t c = fwrite( evbuffer, 1, evbuffer[0], file );
     if( c != evbuffer[0] ) {
       cerr << "File write error at event " << iev << endl;
@@ -115,8 +115,3 @@ int main( int argc, char** argv )
   fclose(file);
   return 0;
 }
-#if 0
-      // Event length in bytes, including header
-    evbuffer[0] = hdrlen*sizeof(evbuffer[0]) + evlength*sizeof(double);
-    evbuffer[1] = evlength;
-#endif
