@@ -12,6 +12,7 @@ struct EventHeader {
 };
 
 static const uint16_t MAXDATA = 16;
+static const uint16_t MAXMODULES = 8;
 
 // For each module in the event
 struct ModuleHeader {
@@ -27,7 +28,7 @@ struct ModuleData {
 
 struct Event {
   EventHeader header;
-  ModuleData* module;
+  ModuleData* module[MAXMODULES];
 };
 
 #endif
