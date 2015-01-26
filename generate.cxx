@@ -1,4 +1,8 @@
 // Generate and write test data file
+//
+// For the file format generated, see rawdata.h
+
+#include "rawdata.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -70,22 +74,35 @@ int main( int argc, char** argv )
 
   srand48(seed);
   uint32_t evbuffer[SIZE];
-  size_t hdrlen = 2;
 
   // Generate event data
   for( int iev = 0; iev < NEVT; ++iev ) {
-    //Write between 1 and 10  data values per event
-    uint32_t evlength = int(10.0*drand48())+1;
-    // Event length in bytes, including header
-    evbuffer[0] = hdrlen*sizeof(evbuffer[0]) + evlength*sizeof(double);
-    evbuffer[1] = evlength;
-
-    // Fill event with data values between -10 and +10
-    for( uint32_t i = 0; i<evlength; ++i ) {
-      double x = 20.0*drand48() - 10.0;
-      const size_t stepsize = sizeof(x)/sizeof(evbuffer[0]);
-      memcpy( evbuffer+hdrlen+stepsize*i, &x, sizeof(x) );
+    EventHeader evthdr;
+    evthdr.event_info = 0;
+    char* evtp = (char*)evbuffer;
+    memcpy( evtp, &evthdr, sizeof(evthdr) );
+    evtp += sizeof(evthdr);
+    for( int idet = 0; idet < NDET; ++idet ) {
+      ModuleHeader modhdr;
+      double data[MAXDATA];
+      // Module number starts counting at 1
+      modhdr.module_number = idet+1;
+      // Generate between 1 and MAXDATA data values per module
+      int ndata = int(MAXDATA*drand48())+1;
+      modhdr.module_ndata = ndata;
+      // Fill event with data values between -10 and +10
+      for( int i = 0; i<ndata; ++i )
+	data[i] = 20.0*drand48() - 10.0;
+      // Calculate module data size
+      modhdr.module_length = sizeof(modhdr) + ndata*sizeof(data[0]);
+      // Write module info to eventbuffer
+      memcpy( evtp, &modhdr, sizeof(modhdr) );
+      evtp += sizeof(modhdr);
+      memcpy( evtp, data, ndata*sizeof(data[0]) );
+      evtp += ndata*sizeof(data[0]);
     }
+    // Calculate total event length
+    evbuffer[0] = evtp-(char*)&evbuffer[0];
     // Write the buffer
     size_t c = fwrite( evbuffer, 1, evbuffer[0], file );
     if( c != evbuffer[0] ) {
@@ -94,7 +111,12 @@ int main( int argc, char** argv )
       exit(2);
     }
   }
-  
+
   fclose(file);
   return 0;
 }
+#if 0
+      // Event length in bytes, including header
+    evbuffer[0] = hdrlen*sizeof(evbuffer[0]) + evlength*sizeof(double);
+    evbuffer[1] = evlength;
+#endif
