@@ -108,23 +108,23 @@ int main( int argc, char** argv )
     evtp += sizeof(evthdr);
     for( int idet = 0; idet < NDET; ++idet ) {
       int ndata;
-      if( idet != 1 )
-	// Generate between 1 and MAXDATA data values per module
-	ndata = int(MAXDATA*drand48())+1;
-      else
+      double data[MAXDATA];
+      if( idet == 1 ) {
 	// Module number 2 has 4-7 data points (for linear fit)
 	ndata = int(4.*drand48())+4;
-      // Fill event with data values between -10 and +10
-      double data[MAXDATA];
-      for( int i = 0; i<ndata; ++i ) {
-	if( idet != 1 ) {
-	  data[i] = 20.0*drand48() - 10.0;
-	} else {
-	  // Special treatment for detector 1
+	double slope = (2.0*drand48()-1.0);
+	double inter = (2.0*drand48()-1.0);
+	for( int i = 0; i<ndata; ++i ) {
 	  // y = error + intercept + slope*x; x = i-2
 	  double y1, y2;
 	  gauss(y1, y2);
-	  data[i] = y1/10. + (2.0*drand48()-1.0) + (2.0*drand48()-1.0)*(i-2);
+	  data[i] = y1/20. + inter + slope*(i-2);
+	}
+      } else {
+	// Generate between 1 and MAXDATA data values per module
+	ndata = int(MAXDATA*drand48())+1;
+	for( int i = 0; i<ndata; ++i ) {
+	  data[i] = 20.0*drand48() - 10.0;
 	}
       }
       // Fill module header
