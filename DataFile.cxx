@@ -11,7 +11,7 @@ DataFile::DataFile( const char* fname ) : filename(fname), filep(0)
 {
   // Constructor
 
-  buffer = new uint32_t[BUFSIZE];
+  buffer = new evbuf_t[BUFSIZE];
 }
 
 DataFile::~DataFile()
@@ -63,7 +63,7 @@ int DataFile::ReadEvent()
     cerr << "Error reading event header from file " << filename << endl;
     return 1;
   }
-  uint32_t evsize = buffer[0];
+  evbuf_t evsize = buffer[0];
   if( evsize > BUFSIZE*wordsize ) {
     cerr << "Event too large, size = " << evsize << endl;
     return 2;

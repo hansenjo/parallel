@@ -4,13 +4,14 @@
 #define PPODD_DECODER
 
 #include "rawdata.h"
+#include "DataFile.h" // for evbuf_t
 #include <vector>
 
 class Decoder {
 public:
   Decoder();
 
-  int Load( uint32_t* evbuffer );
+  int Load( evbuf_t* evbuffer );
 
   int    GetEvSize()       const { return event.header.event_length; }
   int    GetNdata( int m ) const;

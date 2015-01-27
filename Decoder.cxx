@@ -17,7 +17,7 @@ void Decoder::Clear()
   memset( event.module, 0, sizeof(event.module) );
 }
 
-int Decoder::Load( uint32_t* evbuffer )
+int Decoder::Load( evbuf_t* evbuffer )
 {
   Clear();
 

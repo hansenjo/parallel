@@ -8,6 +8,8 @@
 #include <cstdio>
 #include <string>
 
+typedef uint32_t evbuf_t;
+
 class DataFile {
 public:
   DataFile( const char* filename = "" );
@@ -17,14 +19,14 @@ public:
   int       Open( const char* filename = "" );
   int       Close();
 
-  uint32_t* GetEvBuffer() const { return buffer; }
+  evbuf_t*  GetEvBuffer() const { return buffer; }
   int       ReadEvent();
 
 private:
 
   std::string filename;
   FILE*       filep;
-  uint32_t*   buffer;   // Buffer for current event
+  evbuf_t*    buffer;   // Buffer for current event
 };
 
 #endif
