@@ -110,15 +110,15 @@ int main( int argc, char** argv )
       int ndata;
       double data[MAXDATA];
       if( idet == 1 ) {
-	// Module number 2 has 4-7 data points (for linear fit)
-	ndata = int(4.*drand48())+4;
+	// Module number 2 has 5-10 data points (for linear fit)
+	ndata = int(6.*drand48())+5;
 	double slope = (2.0*drand48()-1.0);
 	double inter = (2.0*drand48()-1.0);
 	for( int i = 0; i<ndata; ++i ) {
-	  // y = error + intercept + slope*x; x = i-2
+	  // y = error + intercept + slope*x; x = 1.2*i-4
 	  double y1, y2;
 	  gauss(y1, y2);
-	  data[i] = y1/20. + inter + slope*(i-2);
+	  data[i] = y1/20. + inter + slope*(1.2*i-4);
 	}
       } else {
 	// Generate between 1 and MAXDATA data values per module

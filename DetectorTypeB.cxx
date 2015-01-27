@@ -32,7 +32,7 @@ int DetectorTypeB::Analyze()
   if( data.size() >= 3 ) {
     double S11 = 0, S12 = 0, S22 = 0, G1 = 0, G2 = 0;
     for( vec_t::size_type i = 0; i < data.size(); ++i ) {
-      double x = double(i)-2.0;
+      double x = 1.2*double(i)-4.0;
       double y = data[i];
       S11 += 1.0;
       S12 += x;
@@ -48,7 +48,7 @@ int DetectorTypeB::Analyze()
     cov12 = -S12*D;
     chi2 = 0;
     for( vec_t::size_type i = 0; i < data.size(); ++i ) {
-      double x = double(i)-2.0;
+      double x = 1.2*double(i)-4.0;
       double d = inter + slope*x;
       chi2 += d*d;
     }
