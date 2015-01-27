@@ -29,11 +29,17 @@ int DetectorTypeB::Analyze()
   // This detector type performs a linear fit to the data
 
   typedef vector<double> vec_t;
-  if( data.size() >= 3 ) {
+  if( data.size() % 2 != 0 ) {
+    cerr << GetName() << ": Data error, size = " << data.size()
+	 << ", expected even number" << endl;
+    return 1;
+  }
+  int n = data.size()/2;
+  if( n >= 3 ) {
     double S11 = 0, S12 = 0, S22 = 0, G1 = 0, G2 = 0;
-    for( vec_t::size_type i = 0; i < data.size(); ++i ) {
-      double x = 1.2*double(i)-4.0;
-      double y = data[i];
+    for( int i = 0; i < n; ++i ) {
+      double x = data[2*i];
+      double y = data[2*i+1];
       S11 += 1.0;
       S12 += x;
       S22 += x*x;
@@ -47,12 +53,12 @@ int DetectorTypeB::Analyze()
     cov22 = S22*D;
     cov12 = -S12*D;
     chi2 = 0;
-    for( vec_t::size_type i = 0; i < data.size(); ++i ) {
-      double x = 1.2*double(i)-4.0;
+    for( int i = 0; i < n; ++i ) {
+      double x = data[2*i];
       double d = inter + slope*x;
       chi2 += d*d;
     }
-    ndof = double(data.size())-2.0;
+    ndof = double(n)-2.0;
   }
 
   return 0;

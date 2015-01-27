@@ -11,6 +11,7 @@
 #include <iostream>
 #include <unistd.h>
 #include <cmath>
+#include <cassert>
 
 using namespace std;
 
@@ -110,16 +111,20 @@ int main( int argc, char** argv )
       int ndata;
       double data[MAXDATA];
       if( idet == 1 ) {
-	// Module number 2 has 5-10 data points (for linear fit)
-	ndata = int(6.*drand48())+5;
+	// Module number 2 has 4-8 data points (for linear fit)
+	ndata = int(5.*drand48())+4;
 	double slope = (2.0*drand48()-1.0);
 	double inter = (2.0*drand48()-1.0);
 	for( int i = 0; i<ndata; ++i ) {
-	  // y = error + intercept + slope*x; x = 1.2*i-4
+	  assert(2*i+1 < MAXDATA);
+	  // y = error + intercept + slope*x;
 	  double y1, y2;
 	  gauss(y1, y2);
-	  data[i] = y1/20. + inter + slope*(1.2*i-4);
+	  double x = i - 3.5 + drand48();
+	  data[2*i] = x;
+	  data[2*i+1] = y1/20. + inter + slope*x;
 	}
+	ndata *= 2;
       } else {
 	// Generate between 1 and MAXDATA data values per module
 	ndata = int(MAXDATA*drand48())+1;

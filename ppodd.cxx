@@ -187,7 +187,7 @@ int main( int argc, char* const *argv )
 
       ctx.evdata = &evdata;
       if( (status = AnalyzeEvent(ctx)) != 0 ) {
-	cerr << "Detector error = " << status << " at event " << nev << endl;
+	cerr << "Analysis error = " << status << " at event " << nev << endl;
 	break;
       }
 
