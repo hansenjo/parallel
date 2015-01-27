@@ -20,6 +20,8 @@ public:
   int       Close();
 
   evbuf_t*  GetEvBuffer() const { return buffer; }
+  evbuf_t   GetEvSize()   const { return buffer[0]; }
+  size_t    GetEvWords()  const { return GetEvSize()/sizeof(evbuf_t); }
   int       ReadEvent();
 
 private:

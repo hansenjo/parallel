@@ -12,6 +12,7 @@ DataFile::DataFile( const char* fname ) : filename(fname), filep(0)
   // Constructor
 
   buffer = new evbuf_t[BUFSIZE];
+  buffer[0] = 0;
 }
 
 DataFile::~DataFile()
