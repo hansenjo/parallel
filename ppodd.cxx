@@ -25,8 +25,10 @@ int compress_output = 0;
 
 // Thread processing
 struct Context {
+  uint32_t* evbuffer;
   Decoder*  evdata;
   detlst_t* detectors;
+  int       nev;
 };
 
 // Loop:
@@ -38,6 +40,12 @@ int AnalyzeEvent( Context& ctx )
 {
   // Process all defined analysis objects
 
+  int status = ctx.evdata->Load( ctx.evbuffer );
+  if( status != 0 ) {
+    cerr << "Decoding error = " << status
+	 << " at event " << ctx.nev << endl;
+    return 2;
+  }
   for( detlst_t::iterator it = (*ctx.detectors).begin();
        it != (*ctx.detectors).end(); ++it ) {
     int status;
@@ -49,7 +57,6 @@ int AnalyzeEvent( Context& ctx )
     if( (status = det->Analyze()) != 0 )
       return status;
   }
-
   return 0;
 }
 
@@ -176,6 +183,7 @@ int main( int argc, char* const *argv )
   }
 
   Decoder evdata;
+  ctx.evdata = &evdata;
 
   unsigned long nev = 0;
 
@@ -185,12 +193,14 @@ int main( int argc, char* const *argv )
     ++nev;
     if( mark && (nev%1000) == 0 )
       cout << nev << endl;
-    if( (status = evdata.Load( inp.GetEvBuffer() )) == 0 ) {
+
+
+
       // Main processing
       if( debug > 1 )
-	cout << "Event " << nev << ", size = " << evdata.GetEvSize() << endl;
+	cout << "Event " << nev << endl;
 
-      ctx.evdata = &evdata;
+      ctx.evbuffer = inp.GetEvBuffer();
       if( (status = AnalyzeEvent(ctx)) != 0 ) {
 	cerr << "Analysis error = " << status << " at event " << nev << endl;
 	break;
@@ -204,11 +214,6 @@ int main( int argc, char* const *argv )
 	cerr << "Output error = " << status << endl;
 	break;
       }
-    }
-    else {
-      cerr << "Decoding error = " << status << " at event " << nev << endl;
-      break;
-    }
   }
   if( debug > 0 ) {
     cout << "Normal end of file" << endl;
