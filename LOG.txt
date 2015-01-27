@@ -1,0 +1,78 @@
+27.1.15
+=======
+
+How to order events? -> std::queue?
+
+What needs to happen?
+- Read single event -> evbuffer
+- Check if a thread is waiting
+- if thread available, give it the evbuffer
+- else (no thread available) read more events (-> queue)
+- if queue not at some max size, get next event
+
+What parts get threaded?
+- EVIO -> no
+- Decoder -> yes
+- Detectors -> yes
+- Tests/Cuts -> yes, I guess
+- Output -> maybe ...
+
+Details of EVIO/Decoder:
+What about those event buffers?
+I think EVIO maintains the buffer internally. It is overwritten for each new
+event. At least we need to be prepared for that.
+So -> Must copy each event buffer
+Event sizes range up to a few 100kB -> few MB needed with 16 or 32 threads.
+No problem.
+These aren't reallocated with every event, only if necessary.
+But we need time to copy the buffer for every event. This is a slowdown.
+
+So the event queue needs to contain pointer to copied event buffers.
+
+-------------------
+Before I start hacking away, let's do some timing tests:
+
+Compile with -O2 -DNDEBUG
+
+Generate 1M events:
+./generate -c2 -n1000000 test.dat
+
+Analyze all, writing compressed output, all defined variables (detA.*, detB.*):
+time ./ppodd -z test.dat 
+real	0m21.265s
+user	0m20.635s
+sys	0m0.105s
+
+Save output of this as test-st-opt-reference.odat.gz.
+
+For comparison: Debug code compiled with -g -O0:
+real	0m25.018s
+user	0m24.171s
+sys	0m0.308s
+
+Generated output is exactly identical to replay with optmizations:
+md5sum test.odat.gz test-st-opt-reference.odat.gz
+3a4fb242bcfe5fc54dd62240e5faa63a  test.odat.gz
+3a4fb242bcfe5fc54dd62240e5faa63a  test-st-opt-reference.odat.gz
+
+Not compressing the output: (back with optimizations):
+time ./ppodd test.dat
+real	0m7.842s
+user	0m6.551s
+sys	0m0.139s
+
+(Debug code:
+real	0m9.915s
+user	0m8.394s
+sys	0m0.166s
+)
+
+So, yeah, most time is spent in the compression part. This won't get much faster
+with multithreading. So we should compare uncompressed replays.
+
+To avoid problems with different compression parameters, let's make the
+reference file: test-st-opt-reference.odat
+
+Move the large *.dat and *.odat files to /aonl4/work1/ole/parallel/
+---------------------
+

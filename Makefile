@@ -5,8 +5,8 @@ DEP	= $(SRC:.cxx=.d)
 
 DEFINES  =
 CXXFLAGSST = -g -O0 -Wall
+#CXXFLAGSST = -O2 -DNDEBUG
 CXXFLAGS = $(CXXFLAGSST) -pthread
-#CXXFLAGS = -O2 -DNDEBUG 
 CXXFLAGS += $(INCLUDES) $(DEFINES)
 #LIBS	= -Wl,-Bstatic -lboost_date_time -lboost_program_options -Wl,-Bdynamic
 LIBS    = -lboost_iostreams
