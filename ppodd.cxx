@@ -25,11 +25,19 @@ int compress_output = 0;
 
 // Thread processing
 struct Context {
-  uint32_t* evbuffer;
-  Decoder*  evdata;
-  detlst_t* detectors;
+  Context();
+  vector<evbuf_t> evbuffer;
+  Decoder   evdata;
+  detlst_t  detectors;
+  varlst_t  variables;
   int       nev;
+  static const int INIT_EVSIZE = 1024;
 };
+
+Context::Context()
+{
+  evbuffer.reserve(INIT_EVSIZE);
+}
 
 // Loop:
 // - wait for data
@@ -40,19 +48,19 @@ int AnalyzeEvent( Context& ctx )
 {
   // Process all defined analysis objects
 
-  int status = ctx.evdata->Load( ctx.evbuffer );
+  int status = ctx.evdata.Load( &ctx.evbuffer[0] );
   if( status != 0 ) {
     cerr << "Decoding error = " << status
 	 << " at event " << ctx.nev << endl;
     return 2;
   }
-  for( detlst_t::iterator it = (*ctx.detectors).begin();
-       it != (*ctx.detectors).end(); ++it ) {
+  for( detlst_t::iterator it = ctx.detectors.begin();
+       it != ctx.detectors.end(); ++it ) {
     int status;
     Detector* det = *it;
 
     det->Clear();
-    if( (status = det->Decode(*ctx.evdata)) != 0 )
+    if( (status = det->Decode(ctx.evdata)) != 0 )
       return status;
     if( (status = det->Analyze()) != 0 )
       return status;
@@ -152,6 +160,7 @@ int main( int argc, char* const *argv )
   gDets.push_back( new DetectorTypeB("detB",2) );
 
   // Initialize
+  // (This could be one thread per detector)
   int err = 0;
   for( detlst_t::iterator it = gDets.begin(); it != gDets.end(); ++it ) {
     int status;
@@ -167,9 +176,9 @@ int main( int argc, char* const *argv )
   if( debug > 0 )
     PrintVarList(gVars);
 
-  // Copy analysis object into thread contexts
+  // Set up thread contexts. Copy analysis objects.
   Context ctx;
-  ctx.detectors = &gDets;
+  ctx.detectors = gDets; // shallow copy for now, to be changed
 
   // Start threads
 
@@ -188,9 +197,6 @@ int main( int argc, char* const *argv )
     return 3;
   }
 
-  Decoder evdata;
-  ctx.evdata = &evdata;
-
   unsigned long nev = 0;
 
   // Loop: Read one event and hand it off to an idle thread
@@ -199,27 +205,26 @@ int main( int argc, char* const *argv )
     ++nev;
     if( mark && (nev%1000) == 0 )
       cout << nev << endl;
+    // Main processing
+    if( debug > 1 )
+      cout << "Event " << nev << endl;
 
+    ctx.evbuffer.assign( inp.GetEvBuffer(),
+			 inp.GetEvBuffer()+inp.GetEvWords() );
+    ctx.nev = nev;
+    if( (status = AnalyzeEvent(ctx)) != 0 ) {
+      cerr << "Analysis error = " << status << " at event " << nev << endl;
+      break;
+    }
 
+    if( debug > 1 )
+      PrintVarList(gVars);
 
-      // Main processing
-      if( debug > 1 )
-	cout << "Event " << nev << endl;
-
-      ctx.evbuffer = inp.GetEvBuffer();
-      if( (status = AnalyzeEvent(ctx)) != 0 ) {
-	cerr << "Analysis error = " << status << " at event " << nev << endl;
-	break;
-      }
-
-      if( debug > 1 )
-	PrintVarList(gVars);
-
-      // Write output
-      if( (status = output.Process(nev)) != 0 ) {
-	cerr << "Output error = " << status << endl;
-	break;
-      }
+    // Write output
+    if( (status = output.Process(nev)) != 0 ) {
+      cerr << "Output error = " << status << endl;
+      break;
+    }
   }
   if( debug > 0 ) {
     cout << "Normal end of file" << endl;
