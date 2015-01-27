@@ -65,9 +65,15 @@ static string prgname;
 static void default_names( string infile, string& odef, string& odat )
 {
   // If not given, set defaults for odef and output files
+  if( infile.empty() )
+    return;
   string::size_type pos = infile.rfind('.');
   if( pos != string::npos )
     infile.erase(pos);
+  // Ignore any directory component in the file name
+  pos = infile.rfind('/');
+  if( pos != string::npos && pos+1 < infile.size() )
+    infile.erase(0,pos+1);
   if( odef.empty() )
     odef = infile + ".odef";
   if( odat.empty() )
