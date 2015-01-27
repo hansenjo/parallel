@@ -3,7 +3,4 @@
 # Example output definitions for analyzer parallelization demo
 
 detA.*
-detB.slope
-detB.inter
-detB.chi2
-detB.ndof
+detB.*
