@@ -2,6 +2,7 @@
 
 #include "Podd.h"
 #include "Detector.h"
+#include "Decoder.h"
 #include "Variable.h"
 #include <iostream>
 
@@ -18,6 +19,7 @@ Detector::Detector( const char* _name, int _imod )
 
 void Detector::Clear()
 {
+  data.clear();
 }
 
 int Detector::Init()
@@ -25,8 +27,30 @@ int Detector::Init()
   return DefineVariables( kDefine );
 }
 
-int Detector::Analyze()
+int Detector::Decode( Decoder& evdata )
 {
+  // Generic detector decoding
+
+  int ndata = evdata.GetNdata(imod);
+  if( debug > 1 )
+    Print();
+  if( debug > 2 )
+    cout << " Decode: ndata = " << ndata;
+  if( ndata > 0 ) {
+    if( debug > 3 )
+      cout << ", data = ";
+    for( int i = 0; i < ndata; ++i ) {
+      data.push_back(evdata.GetData(imod,i));
+      if( debug > 3 ) {
+	cout << evdata.GetData(imod,i);
+	if( i+1 != ndata )
+	  cout << ", ";
+      }
+    }
+  }
+  if( debug > 2 )
+    cout << endl;
+
   return 0;
 }
 

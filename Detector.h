@@ -4,6 +4,7 @@
 #define PPODD_DETECTOR
 
 #include <string>
+#include <vector>
 
 class Decoder;
 
@@ -14,8 +15,8 @@ public:
 
   virtual void Clear();
   virtual int  Init();
-  virtual int  Decode(  Decoder& evdata ) = 0;
-  virtual int  Analyze();
+  virtual int  Decode( Decoder& evdata );
+  virtual int  Analyze() = 0;
   virtual void Print() const;
 
   const std::string& GetName() const { return name; }
@@ -25,6 +26,8 @@ protected:
   std::string name;    // Name
   std::string type;    // Type (for identifying subclass)
   int imod;            // Module number (for decoding)
+
+  std::vector<double> data; // Raw data
 
   virtual int  DefineVariables( bool remove = false );
 };

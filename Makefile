@@ -1,5 +1,5 @@
 SRC	= ppodd.cxx DataFile.cxx Decoder.cxx Variable.cxx Detector.cxx \
-		DetectorTypeA.cxx Output.cxx
+		DetectorTypeA.cxx DetectorTypeB.cxx Output.cxx
 OBJ	= $(SRC:.cxx=.o)
 DEP	= $(SRC:.cxx=.d)
 
