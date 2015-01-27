@@ -77,6 +77,7 @@ static void usage()
        << " (default = input_file.odat)" << endl
        << " [ -d debug_level ]\tset debug level" << endl
        << " [ -n nev_max ]\t\tset max number of events" << endl
+       << " [ -t nthreads ]\t\tcreate at most nthreads (default = n_cpus)" << endl
        << " [ -m ]\t\t\tMark progress" << endl
        << " [ -z ]\t\t\tCompress output with gzip" << endl
        << " [ -h ]\t\t\tPrint this help message" << endl;
@@ -90,12 +91,13 @@ int main( int argc, char* const *argv )
   int opt;
   bool mark = false;
   string input_file, odef_file, odat_file;
+  int nthreads = GetCPUcount();
 
   prgname = argv[0];
   if( prgname.size() >= 2 && prgname.substr(0,2) == "./" )
     prgname.erase(0,2);
 
-  while( (opt = getopt(argc, argv, "c:d:n:o:zmh")) != -1 ) {
+  while( (opt = getopt(argc, argv, "c:d:n:o:t:zmh")) != -1 ) {
     switch (opt) {
     case 'c':
       odef_file = optarg;
@@ -108,6 +110,9 @@ int main( int argc, char* const *argv )
       break;
     case 'o':
       odat_file = optarg;
+      break;
+    case 't':
+      nthreads = atoi(optarg);
       break;
     case 'z':
       compress_output = 1;

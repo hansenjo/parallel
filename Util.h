@@ -19,13 +19,18 @@ inline void DeleteContainer( Container& c )
 }
 
 //___________________________________________________________________________
-// template< typename ContainerOfContainers >
-// inline void DeleteContainerOfContainers( ContainerOfContainers& cc )
-// {
-//   // Delete all elements of given container of containers of pointers
-//   for_each( cc.begin(), cc.end(),
-// 	    DeleteContainer<typename ContainerOfContainers::value_type> );
-//   cc.clear();
-// }
+template< typename ContainerOfContainers >
+inline void DeleteContainerOfContainers( ContainerOfContainers& cc )
+{
+  // Delete all elements of given container of containers of pointers
+  for_each( cc.begin(), cc.end(),
+	    DeleteContainer<typename ContainerOfContainers::value_type> );
+  cc.clear();
+}
+
+//___________________________________________________________________________
+// Utility functions in Util.cxx
+
+int GetCPUcount();
 
 #endif
