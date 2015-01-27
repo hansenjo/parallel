@@ -8,7 +8,7 @@
 
 using namespace std;
 
-DetectorTypeA::DetectorTypeA( const char* _name ) : Detector(_name)
+DetectorTypeA::DetectorTypeA( const char* name, int imod ) : Detector(name,imod)
 {
   type = "A";
 }
@@ -30,7 +30,7 @@ void DetectorTypeA::Clear()
 
 int DetectorTypeA::Decode( Decoder& evdata )
 {
-  int ndata = evdata.GetNdata();
+  int ndata = evdata.GetNdata(imod);
   if( debug > 1 )
     Print();
   if( debug > 2 )
@@ -39,9 +39,9 @@ int DetectorTypeA::Decode( Decoder& evdata )
     if( debug > 3 )
       cout << ", data = ";
     for( int i = 0; i < ndata; ++i ) {
-      data.push_back(evdata.GetData(i));
+      data.push_back(evdata.GetData(imod,i));
       if( debug > 3 ) {
-	cout << evdata.GetData(i);
+	cout << evdata.GetData(imod,i);
 	if( i+1 != ndata )
 	  cout << ", ";
       }

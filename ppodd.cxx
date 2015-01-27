@@ -129,7 +129,7 @@ int main( int argc, char* const *argv )
   default_names( input_file, odef_file, odat_file );
 
   // Set up analysis objects
-  gDets.push_back( new DetectorTypeA("detA") );
+  gDets.push_back( new DetectorTypeA("detA",1) );
   //TODO: gDets.push_back( new DetectorTypeB("B") );
 
   // Initialize

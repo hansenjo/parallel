@@ -5,7 +5,7 @@
 
 using namespace std;
 
-const int BUFSIZE = 64;
+const int BUFSIZE = 1024;
 
 DataFile::DataFile( const char* fname ) : filename(fname), filep(0)
 {

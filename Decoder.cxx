@@ -3,18 +3,18 @@
 #include "Decoder.h"
 #include <iostream>
 #include <cstring>
+#include <stdint.h>
+#include <cassert>
 
 using namespace std;
 
-Decoder::Decoder() : evsize(0)
+Decoder::Decoder()
 {
-  data.reserve(10);
 }
 
 void Decoder::Clear()
 {
-  evsize = 0;
-  data.clear();
+  memset( event.module, 0, sizeof(event.module) );
 }
 
 int Decoder::Load( uint32_t* evbuffer )
@@ -23,20 +23,36 @@ int Decoder::Load( uint32_t* evbuffer )
 
   if( !evbuffer )
     return 1;
-
-  evsize = evbuffer[0];
-  if( evsize < 8 )
+  if( evbuffer[0] < 8 )
     return 2;
-  uint32_t ndata = evbuffer[1];
-  if( ndata > 0 ) {
-    double x;
-    for( uint32_t i = 0; i < ndata; ++i ) {
-      const size_t stepsize = sizeof(x)/sizeof(evbuffer[0]);
-      memcpy( &x, evbuffer+2+stepsize*i, sizeof(double) );
-      data.push_back(x);
-    }
+
+  memcpy( &event.header, evbuffer, sizeof(event.header) );
+  char* evtp = ((char*)evbuffer)+sizeof(event.header);
+  int ndet = event.header.event_info;
+  for( int i = 0; i < ndet; ++i ) {
+    ModuleData* m = (ModuleData*)evtp;
+    if( !m )
+      return 3;
+    int imod = m->header.module_number;
+    if( imod < 1 )
+      return 4;
+    event.module[imod-1] = m;
+    evtp += m->header.module_length;
   }
   return 0;
 }
 
 
+int Decoder::GetNdata( int m ) const
+{
+  if( event.module[m] == 0 )
+    return 0;
+
+  return event.module[m]->header.module_ndata;
+}
+
+double Decoder::GetData( int m, int i ) const
+{
+  assert( event.module[m] );
+  return event.module[m]->data[i];
+}

@@ -7,8 +7,13 @@
 
 using namespace std;
 
-Detector::Detector( const char* _name ) : name(_name), type("abstract")
+Detector::Detector( const char* _name, int _imod )
+  : name(_name), type("--baseclass--"), imod(_imod-1)
 {
+  if( imod<0 ) {
+    cerr << "\"" << name << "\": "
+	 << "Warning: invalid module number = " << _imod << endl;
+  }
 }
 
 void Detector::Clear()

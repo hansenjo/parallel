@@ -3,7 +3,7 @@
 #ifndef PPODD_DECODER
 #define PPODD_DECODER
 
-#include <stdint.h>
+#include "rawdata.h"
 #include <vector>
 
 class Decoder {
@@ -12,13 +12,12 @@ public:
 
   int Load( uint32_t* evbuffer );
 
-  int    GetEvSize()      const  { return evsize; }
-  int    GetNdata()       const  { return data.size(); }
-  double GetData( int i ) const  { return data[i]; }
+  int    GetEvSize()       const { return event.header.event_length; }
+  int    GetNdata( int m ) const;
+  double GetData( int m, int i ) const;
 
 private:
-  int evsize;
-  std::vector<double> data;
+  Event event;
 
   void Clear();
 };

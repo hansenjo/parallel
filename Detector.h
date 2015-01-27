@@ -9,7 +9,7 @@ class Decoder;
 
 class Detector {
 public:
-  Detector( const char* name );
+  Detector( const char* name, int imod );
   virtual ~Detector() {}
 
   virtual void Clear();
@@ -22,8 +22,9 @@ public:
   const std::string& GetType() const { return type; }
 
 protected:
-  std::string name;
-  std::string type;
+  std::string name;    // Name
+  std::string type;    // Type (for identifying subclass)
+  int imod;            // Module number (for decoding)
 
   virtual int  DefineVariables( bool remove = false );
 };
