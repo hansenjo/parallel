@@ -4,6 +4,7 @@
 #include "DataFile.h"
 #include "Decoder.h"
 #include "DetectorTypeA.h"
+#include "DetectorTypeB.h"
 #include "Variable.h"
 #include "Output.h"
 #include "Util.h"
@@ -130,7 +131,7 @@ int main( int argc, char* const *argv )
 
   // Set up analysis objects
   gDets.push_back( new DetectorTypeA("detA",1) );
-  //TODO: gDets.push_back( new DetectorTypeB("B") );
+  gDets.push_back( new DetectorTypeB("detB",2) );
 
   // Initialize
   int err = 0;
