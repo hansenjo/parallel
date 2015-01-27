@@ -6,7 +6,6 @@
 #define PPODD_DETECTORA
 
 #include "Detector.h"
-#include <vector>
 
 class Decoder;
 
@@ -21,8 +20,7 @@ public:
   virtual void Print() const;
 
 protected:
-
-  std::vector<double> data;
+  // Statistics results
   double nval;
   double sum;
   double min;
