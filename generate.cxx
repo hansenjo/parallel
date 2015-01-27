@@ -10,8 +10,28 @@
 #include <cstring>
 #include <iostream>
 #include <unistd.h>
+#include <cmath>
 
 using namespace std;
+
+void gauss( double& y1, double& y2 )
+{
+  // Generate a pair of Gaussian-distributed random numbers.
+  // Results are in y1 and y2.
+  double x1, x2, w;
+
+  do {
+    x1 = 2.0 * drand48() - 1.0;
+    x2 = 2.0 * drand48() - 1.0;
+    w = x1 * x1 + x2 * x2;
+  } while ( w >= 1.0 );
+
+  w = sqrt( (-2.0 * log( w ) ) / w );
+  y1 = x1 * w;
+  y2 = x2 * w;
+
+  return;
+}
 
 static const char* prgname;
 
@@ -87,16 +107,31 @@ int main( int argc, char** argv )
     memcpy( evtp, &evthdr, sizeof(evthdr) );
     evtp += sizeof(evthdr);
     for( int idet = 0; idet < NDET; ++idet ) {
-      ModuleHeader modhdr;
+      int ndata;
+      if( idet != 1 )
+	// Generate between 1 and MAXDATA data values per module
+	ndata = int(MAXDATA*drand48())+1;
+      else
+	// Module number 2 has 4-7 data points (for linear fit)
+	ndata = int(4.*drand48())+4;
+      // Fill event with data values between -10 and +10
       double data[MAXDATA];
+      for( int i = 0; i<ndata; ++i ) {
+	if( idet != 1 ) {
+	  data[i] = 20.0*drand48() - 10.0;
+	} else {
+	  // Special treatment for detector 1
+	  // y = error + intercept + slope*x; x = i-2
+	  double y1, y2;
+	  gauss(y1, y2);
+	  data[i] = y1/10. + (2.0*drand48()-1.0) + (2.0*drand48()-1.0)*(i-2);
+	}
+      }
+      // Fill module header
+      ModuleHeader modhdr;
       // Module number starts counting at 1
       modhdr.module_number = idet+1;
-      // Generate between 1 and MAXDATA data values per module
-      int ndata = int(MAXDATA*drand48())+1;
       modhdr.module_ndata = ndata;
-      // Fill event with data values between -10 and +10
-      for( int i = 0; i<ndata; ++i )
-	data[i] = 20.0*drand48() - 10.0;
       // Calculate module data size
       modhdr.module_length = sizeof(modhdr) + ndata*sizeof(data[0]);
       size_t size_now = modhdr.module_length + evtp-(char*)&evbuffer[0];
