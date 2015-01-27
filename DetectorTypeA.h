@@ -1,4 +1,6 @@
 // Simple detector example class
+//
+// This detector type computes basic statistics of the raw data
 
 #ifndef PPODD_DETECTORA
 #define PPODD_DETECTORA
@@ -14,7 +16,7 @@ public:
   virtual ~DetectorTypeA();
 
   virtual void Clear();
-  virtual int  Decode(  Decoder& evdata );
+  virtual int  Decode( Decoder& evdata );
   virtual int  Analyze();
   virtual void Print() const;
 
