@@ -112,7 +112,8 @@ int main( int argc, char* const *argv )
   int opt;
   bool mark = false;
   string input_file, odef_file, odat_file;
-  int nthreads = GetCPUcount();
+  int ncpu = GetCPUcount();
+  int nthreads = ncpu-1;
 
   prgname = argv[0];
   if( prgname.size() >= 2 && prgname.substr(0,2) == "./" )
@@ -173,12 +174,21 @@ int main( int argc, char* const *argv )
   if( err )
     return 1;
 
-  if( debug > 0 )
+  if( debug > 1 )
     PrintVarList(gVars);
 
   // Set up thread contexts. Copy analysis objects.
-  Context ctx;
-  ctx.detectors = gDets; // shallow copy for now, to be changed
+  if( nthreads <= 0 || nthreads >= ncpu )
+    nthreads = (ncpu > 1) ? ncpu-1 : 1;
+  if( debug > 0 )
+    cout << "Initializing " << nthreads << " analysis threads" << endl;
+
+  vector<Context> ctx(nthreads);
+  for( vector<Context>::size_type i = 0; i < ctx.size(); ++i ) {
+    // shallow copy for now, to be changed
+    ctx[i].detectors = gDets;
+    ctx[i].variables = gVars;
+  }
 
   // Start threads
 
@@ -192,7 +202,8 @@ int main( int argc, char* const *argv )
   if( compress_output > 0 && odat_file.size() > 3
       && odat_file.substr(odat_file.size()-3) != ".gz" )
     odat_file.append(".gz");
-  if( output.Init(odat_file.c_str(), odef_file.c_str(), gVars) != 0 ) {
+  if( output.Init( odat_file.c_str(), odef_file.c_str(),
+		   ctx[0].variables) != 0 ) {
     inp.Close();
     return 3;
   }
@@ -209,10 +220,10 @@ int main( int argc, char* const *argv )
     if( debug > 1 )
       cout << "Event " << nev << endl;
 
-    ctx.evbuffer.assign( inp.GetEvBuffer(),
+    ctx[0].evbuffer.assign( inp.GetEvBuffer(),
 			 inp.GetEvBuffer()+inp.GetEvWords() );
-    ctx.nev = nev;
-    if( (status = AnalyzeEvent(ctx)) != 0 ) {
+    ctx[0].nev = nev;
+    if( (status = AnalyzeEvent(ctx[0])) != 0 ) {
       cerr << "Analysis error = " << status << " at event " << nev << endl;
       break;
     }
