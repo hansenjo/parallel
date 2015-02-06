@@ -22,5 +22,6 @@ generate
 *.patch
 *.diff
 
-# Aux files
+# Examples
+Examples
 rw.c
