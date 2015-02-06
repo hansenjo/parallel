@@ -1,5 +1,6 @@
 SRC	= ppodd.cxx DataFile.cxx Decoder.cxx Variable.cxx Detector.cxx \
-		DetectorTypeA.cxx DetectorTypeB.cxx Output.cxx Util.cxx
+		DetectorTypeA.cxx DetectorTypeB.cxx Output.cxx Util.cxx \
+		ThreadPool.cxx
 OBJ	= $(SRC:.cxx=.o)
 DEP	= $(SRC:.cxx=.d)
 
