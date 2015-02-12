@@ -13,8 +13,8 @@ public:
   WorkQueue();
   ~WorkQueue();
 
-  void* nextTaskData();
-  void  addTaskData( void* nt );
+  void* next();
+  void  add( void* nt );
 
 private:
   std::queue<void*> buffers;
@@ -24,7 +24,7 @@ private:
 
 class Thread {
 public:
-  Thread(WorkQueue& _work_queue);
+  Thread(WorkQueue& _work_queue, WorkQueue& _free_queue);
   virtual ~Thread();
 
   void start();
@@ -34,6 +34,7 @@ protected:
   virtual void run() = 0;
 
   WorkQueue& work_queue;
+  WorkQueue& free_queue;
 
 private:
   static void* threadProc( void* param );
@@ -52,7 +53,7 @@ public:
   // Allocate a thread pool and set them to work trying to get tasks
   ThreadPool( size_t n ) {
     for (size_t i=0; i<n; ++i) {
-      threads.push_back(new Thread_t(workQueue));
+      threads.push_back(new Thread_t(workQueue,freeQueue));
       threads.back()->start();
     }
   }
@@ -60,22 +61,30 @@ public:
   // Wait for the threads to finish, then delete them
   ~ThreadPool() {
     for (size_t i=0,e=threads.size(); i<e; ++i)
-      workQueue.addTaskData(NULL);
+      workQueue.add(NULL);
     for (size_t i=0,e=threads.size(); i<e; ++i) {
       threads[i]->join();
       delete threads[i];
     }
-    threads.clear();
   }
 
   // Add data to process
-  void addTaskData( void* nt ) {
-    workQueue.addTaskData(nt);
+  void Process( void* nt ) {
+    workQueue.add(nt);
+  }
+
+  void addFreeData(void* nt ) {
+    freeQueue.add(nt);
+  }
+
+  void* nextFree() {
+    return freeQueue.next();
   }
 
 private:
   std::vector<Thread*> threads;
   WorkQueue workQueue;
+  WorkQueue freeQueue;
 };
 
 #endif

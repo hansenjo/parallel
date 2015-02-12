@@ -14,8 +14,8 @@ using namespace std;
 //static pthread_mutex_t console_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 // Reusable thread class
-Thread::Thread(WorkQueue& _work_queue) :
-  work_queue(_work_queue), state(kNone), handle(0)
+Thread::Thread(WorkQueue& _work_queue, WorkQueue& _free_queue) :
+  work_queue(_work_queue), free_queue(_free_queue), state(kNone), handle(0)
 {
 }
 
@@ -65,7 +65,7 @@ WorkQueue::~WorkQueue()
 }
 
 // Retrieves the next task from the queue
-void* WorkQueue::nextTaskData()
+void* WorkQueue::next()
 {
   // Lock the queue mutex
   pthread_mutex_lock(&qmtx);
@@ -81,7 +81,7 @@ void* WorkQueue::nextTaskData()
 }
 
 // Add data
-void WorkQueue::addTaskData( void* nt ) {
+void WorkQueue::add( void* nt ) {
   // Lock the queue
   pthread_mutex_lock(&qmtx);
   // Push task data onto the queue
