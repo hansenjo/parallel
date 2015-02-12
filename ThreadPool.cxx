@@ -2,12 +2,11 @@
 
 #include "ThreadPool.h"
 
-#include <cstdio>
+#include <iostream>
 #include <cstdlib>
 #include <cassert>
 
 #include <unistd.h>
-#include <malloc.h>
 
 using namespace std;
 
@@ -15,63 +14,41 @@ using namespace std;
 //static pthread_mutex_t console_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 // Reusable thread class
-class Thread
+Thread::Thread(WorkQueue& _work_queue) :
+  work_queue(_work_queue), state(kNone), handle(0)
 {
-public:
-  Thread()
-  {
-    state = EState_None;
-    handle = 0;
-  }
+}
 
-  ~Thread()
-  {
-    assert(state != EState_Started || joined);
-  }
+Thread::~Thread()
+{
+  assert(state == kJoined);
+}
 
-  void start()
-  {
-    assert(state == EState_None);
-    // in case of thread create error I usually FatalExit...
-    if (pthread_create(&handle, NULL, threadProc, this))
-      abort();
-    state = EState_Started;
-  }
+void Thread::start()
+{
+  assert(state == kNone);
+  if (pthread_create(&handle, NULL, threadProc, this))
+    abort();
+  state = kStarted;
+}
 
-  void join()
-  {
-    // A started thread must be joined exactly once!
-    assert(state == EState_Started);
-    pthread_join(handle, NULL);
-    state = EState_Joined;
-  }
+void Thread::join()
+{
+  // A started thread must be joined exactly once!
+  assert(state == kStarted);
+  pthread_join(handle, NULL);
+  state = kJoined;
+}
 
-protected:
-  virtual void run() = 0;
-
-private:
-  static void* threadProc(void* param)
-  {
-    Thread* thread = reinterpret_cast<Thread*>(param);
-    thread->run();
-    return NULL;
-  }
-
-private:
-  enum EState
-    {
-      EState_None,
-      EState_Started,
-      EState_Joined
-    };
-
-  EState state;
-  bool joined;
-  pthread_t handle;
-};
+void* Thread::threadProc(void* param)
+{
+  Thread* thread = reinterpret_cast<Thread*>(param);
+  thread->run();
+  return NULL;
+}
 
 
-WorkQueue::WorkQueue()
+WorkQueue::WorkQueue( size_t capacity ) : m_capacity(capacity)
 {
   pthread_mutex_init(&qmtx,0);
 
@@ -88,81 +65,33 @@ WorkQueue::~WorkQueue()
 }
 
 // Retrieves the next task from the queue
-Task* WorkQueue::nextTask()
+void* WorkQueue::nextTaskData()
 {
-  // The return value
-  Task* nt = 0;
-
   // Lock the queue mutex
   pthread_mutex_lock(&qmtx);
 
-  while (tasks.empty())
+  while (buffers.empty())
     pthread_cond_wait(&wcond, &qmtx);
 
-  nt = tasks.front();
-  tasks.pop();
-
+  void* nt = buffers.front();
+  buffers.pop();
+//TODO: signal that new work can be added
   // Unlock the mutex and return
   pthread_mutex_unlock(&qmtx);
   return nt;
 }
-// Add a task
-void WorkQueue::addTask( Task* nt ) {
+
+// Add data
+//TODO: 
+void WorkQueue::addTaskData( void* nt ) {
   // Lock the queue
   pthread_mutex_lock(&qmtx);
-  // Add the task
-  tasks.push(nt);
+//TODO: if queue is "full", wait for elements to be popped
+  // Push task data onto the queue
+  buffers.push(nt);
   // signal there's new work
   pthread_cond_signal(&wcond);
   // Unlock the mutex
   pthread_mutex_unlock(&qmtx);
-}
-
-// Thanks to the reusable thread class implementing threads is
-// simple and free of pthread api usage.
-class PoolWorkerThread : public Thread
-{
-public:
-  PoolWorkerThread(WorkQueue& _work_queue) : work_queue(_work_queue) {}
-protected:
-  virtual void run()
-  {
-    while (Task* task = work_queue.nextTask())
-      task->run();
-  }
-private:
-  WorkQueue& work_queue;
-};
-
-// Allocate a thread pool and set them to work trying to get tasks
-ThreadPool::ThreadPool( int n )
-{
-  finishing = false;
-  printf("Creating a thread pool with %d threads\n", n);
-  for (int i=0; i<n; ++i) {
-    threads.push_back(new PoolWorkerThread(workQueue));
-    threads.back()->start();
-  }
-}
-
-// Wait for the threads to finish, then delete them
-ThreadPool::~ThreadPool() {
-  finish();
-}
-
-// Add a task
-void ThreadPool::addTask( Task* nt ) {
-  workQueue.addTask(nt);
-}
-
-// Tell the tasks to finish and return
-void ThreadPool::finish() {
-  for (size_t i=0,e=threads.size(); i<e; ++i)
-    workQueue.addTask(NULL);
-  for (size_t i=0,e=threads.size(); i<e; ++i) {
-    threads[i]->join();
-    delete threads[i];
-  }
-  threads.clear();
 }
 
