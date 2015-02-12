@@ -1,6 +1,7 @@
 #include "ThreadPool.h"
 #include <iostream>
 #include <iomanip>
+#include <cstdlib>
 #include "unistd.h"
 
 using namespace std;
@@ -24,8 +25,9 @@ protected:
       int* data = (int*)arg;
       pthread_mutex_lock(&console_mutex);
       cout << "Thread " << pthread_self()
-	   << ", data = " << setfill('0') << setw(4) << data[0] << endl;
+	   << ", data = " << setfill('0') << setw(5) << data[0] << endl;
       pthread_mutex_unlock(&console_mutex);
+      usleep((unsigned int)((float)rand()/(float)RAND_MAX*20000));
       free_queue.add(arg);
     }
   }
@@ -33,9 +35,9 @@ protected:
 
 int main( int /* argc */, char** /* argv */ )
 {
-  const size_t NDATA = 10;
+  const size_t NDATA = 20;
 
-  ThreadPool<AnalysisThread> pool(10);
+  ThreadPool<AnalysisThread> pool(5);
 
   // Set up a pool of reusable data buffers
   int data[NDATA];
@@ -44,7 +46,7 @@ int main( int /* argc */, char** /* argv */ )
   }
 
   // Add work
-  for( size_t i = 0; i < 150*NDATA; ++i ) {
+  for( size_t i = 0; i < 10000; ++i ) {
     int* arg = (int*)pool.nextFree();
     *arg = i;
     pool.Process(arg);
