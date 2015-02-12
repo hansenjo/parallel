@@ -8,10 +8,9 @@
 #include <pthread.h>
 
 // Wrapper around std::queue with some mutex protection
-//TODO: limit queue size
 class WorkQueue {
 public:
-  WorkQueue( size_t capacity );
+  WorkQueue();
   ~WorkQueue();
 
   void* nextTaskData();
@@ -21,7 +20,6 @@ private:
   std::queue<void*> buffers;
   pthread_mutex_t qmtx;
   pthread_cond_t wcond;
-  size_t m_capacity;
 };
 
 class Thread {
@@ -52,7 +50,7 @@ template <typename Thread_t>
 class ThreadPool {
 public:
   // Allocate a thread pool and set them to work trying to get tasks
-  ThreadPool( size_t n ) : workQueue(n) {
+  ThreadPool( size_t n ) {
     for (size_t i=0; i<n; ++i) {
       threads.push_back(new Thread_t(workQueue));
       threads.back()->start();

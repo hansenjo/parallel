@@ -48,7 +48,7 @@ void* Thread::threadProc(void* param)
 }
 
 
-WorkQueue::WorkQueue( size_t capacity ) : m_capacity(capacity)
+WorkQueue::WorkQueue()
 {
   pthread_mutex_init(&qmtx,0);
 
@@ -75,18 +75,15 @@ void* WorkQueue::nextTaskData()
 
   void* nt = buffers.front();
   buffers.pop();
-//TODO: signal that new work can be added
   // Unlock the mutex and return
   pthread_mutex_unlock(&qmtx);
   return nt;
 }
 
 // Add data
-//TODO: 
 void WorkQueue::addTaskData( void* nt ) {
   // Lock the queue
   pthread_mutex_lock(&qmtx);
-//TODO: if queue is "full", wait for elements to be popped
   // Push task data onto the queue
   buffers.push(nt);
   // signal there's new work
