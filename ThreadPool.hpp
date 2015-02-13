@@ -120,20 +120,20 @@ private:
 template <typename Data_t>
 class Thread {
 public:
-  Thread(WorkQueue<Data_t>& work_queue, WorkQueue<Data_t>& free_queue) :
-    fWorkQueue(work_queue), fFreeQueue(free_queue), state(kNone), handle(0) {}
+  Thread( WorkQueue<Data_t>& wq, WorkQueue<Data_t>& fq )
+    : fWorkQueue(wq), fFreeQueue(fq), state(kNone), handle(0) {}
   virtual ~Thread() { assert(state == kJoined); }
 
   void start() {
     assert(state == kNone);
-    if (pthread_create(&handle, NULL, threadProc, this))
+    if (pthread_create(&handle, 0, threadProc, this))
       abort();
     state = kStarted;
   }
 
   void join() {
     assert(state == kStarted);
-    pthread_join(handle, NULL);
+    pthread_join(handle, 0);
     state = kJoined;
   }
 
@@ -148,7 +148,7 @@ private:
   {
     Thread* thread = reinterpret_cast<Thread*>(param);
     thread->run();
-    return NULL;
+    return 0;
   }
 
   enum EState { kNone, kStarted, kJoined };
@@ -173,7 +173,7 @@ public:
   // Wait for the threads to finish, then delete them
   ~ThreadPool() {
     for (size_t i=0,e=fThreads.size(); i<e; ++i)
-      fWorkQueue.add(NULL);
+      fWorkQueue.add(0);
     for (size_t i=0,e=fThreads.size(); i<e; ++i) {
       fThreads[i]->join();
       delete fThreads[i];
@@ -193,8 +193,14 @@ public:
     return fFreeQueue.next();
   }
 
+  Thread_t<Data_t>& GetThread( size_t i ) {
+    if( i >= fThreads.size() )
+      return 0;
+    return fThreads[i];
+  }
+
 private:
-  std::vector<Thread<Data_t>*> fThreads;
+  std::vector<Thread_t<Data_t>*> fThreads;
   WorkQueue<Data_t> fWorkQueue;
   WorkQueue<Data_t> fFreeQueue;
 };

@@ -17,8 +17,8 @@ template< typename Data_t>
 class AnalysisThread : public Thread<Data_t>
 {
 public:
-  AnalysisThread(WorkQueue<Data_t>& work_queue, WorkQueue<Data_t>& free_queue)
-    : Thread<Data_t>(work_queue, free_queue), fSeed(pthread_self())
+  AnalysisThread( WorkQueue<Data_t>& wq, WorkQueue<Data_t>& fq )
+    : Thread<Data_t>(wq,fq), fSeed(pthread_self())
   {
     srand(fSeed);
   }
