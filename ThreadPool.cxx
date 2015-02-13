@@ -14,81 +14,81 @@ using namespace std;
 //static pthread_mutex_t console_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 // Reusable thread class
-Thread::Thread(WorkQueue& _work_queue, WorkQueue& _free_queue) :
-  work_queue(_work_queue), free_queue(_free_queue), state(kNone), handle(0)
-{
-}
+// Thread::Thread(WorkQueue& _work_queue, WorkQueue& _free_queue) :
+//   work_queue(_work_queue), free_queue(_free_queue), state(kNone), handle(0)
+// {
+// }
 
-Thread::~Thread()
-{
-  assert(state == kJoined);
-}
+// Thread::~Thread()
+// {
+//   assert(state == kJoined);
+// }
 
-void Thread::start()
-{
-  assert(state == kNone);
-  if (pthread_create(&handle, NULL, threadProc, this))
-    abort();
-  state = kStarted;
-}
+// void Thread::start()
+// {
+//   assert(state == kNone);
+//   if (pthread_create(&handle, NULL, threadProc, this))
+//     abort();
+//   state = kStarted;
+// }
 
-void Thread::join()
-{
-  // A started thread must be joined exactly once!
-  assert(state == kStarted);
-  pthread_join(handle, NULL);
-  state = kJoined;
-}
+// void Thread::join()
+// {
+//   // A started thread must be joined exactly once!
+//   assert(state == kStarted);
+//   pthread_join(handle, NULL);
+//   state = kJoined;
+// }
 
-void* Thread::threadProc(void* param)
-{
-  Thread* thread = reinterpret_cast<Thread*>(param);
-  thread->run();
-  return NULL;
-}
+// void* Thread::threadProc(void* param)
+// {
+//   Thread* thread = reinterpret_cast<Thread*>(param);
+//   thread->run();
+//   return NULL;
+// }
 
 
-WorkQueue::WorkQueue()
-{
-  pthread_mutex_init(&qmtx,0);
+// WorkQueue::WorkQueue()
+// {
+//   pthread_mutex_init(&qmtx,0);
 
-  // wcond is a condition variable that's signaled
-  // when new work arrives
-  pthread_cond_init(&wcond, 0);
-}
+//   // wcond is a condition variable that's signaled
+//   // when new work arrives
+//   pthread_cond_init(&wcond, 0);
+// }
 
-WorkQueue::~WorkQueue()
-{
-  // Cleanup pthreads
-  pthread_mutex_destroy(&qmtx);
-  pthread_cond_destroy(&wcond);
-}
+// WorkQueue::~WorkQueue()
+// {
+//   // Cleanup pthreads
+//   pthread_mutex_destroy(&qmtx);
+//   pthread_cond_destroy(&wcond);
+// }
 
-// Retrieves the next task from the queue
-void* WorkQueue::next()
-{
-  // Lock the queue mutex
-  pthread_mutex_lock(&qmtx);
+// // Retrieves the next task from the queue
+// void* WorkQueue::next()
+// {
+//   // Lock the queue mutex
+//   pthread_mutex_lock(&qmtx);
 
-  while (buffers.empty())
-    pthread_cond_wait(&wcond, &qmtx);
+//   while (buffers.empty())
+//     pthread_cond_wait(&wcond, &qmtx);
 
-  void* nt = buffers.front();
-  buffers.pop();
-  // Unlock the mutex and return
-  pthread_mutex_unlock(&qmtx);
-  return nt;
-}
+//   void* nt = buffers.front();
+//   buffers.pop();
+//   // Unlock the mutex and return
+//   pthread_mutex_unlock(&qmtx);
+//   return nt;
+// }
 
-// Add data
-void WorkQueue::add( void* nt ) {
-  // Lock the queue
-  pthread_mutex_lock(&qmtx);
-  // Push task data onto the queue
-  buffers.push(nt);
-  // signal there's new work
-  pthread_cond_signal(&wcond);
-  // Unlock the mutex
-  pthread_mutex_unlock(&qmtx);
-}
+// // Add data
+// void WorkQueue::add( void* nt ) {
+//   // Lock the queue
+//   pthread_mutex_lock(&qmtx);
+//   // Push task data onto the queue
+//   buffers.push(nt);
+//   // signal there's new work
+//   pthread_cond_signal(&wcond);
+//   // Unlock the mutex
+//   pthread_mutex_unlock(&qmtx);
+// }
 
