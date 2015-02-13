@@ -17,7 +17,7 @@ class AnalysisThread : public Thread<Data_t>
 {
 public:
   AnalysisThread(WorkQueue<Data_t>& _work_queue, WorkQueue<Data_t>& _free_queue)
-    : Thread<Data_t>(_work_queue, _free_queue), seed(1)
+    : Thread<Data_t>(_work_queue, _free_queue), seed(pthread_self())
   {
     srand(seed);
   }
