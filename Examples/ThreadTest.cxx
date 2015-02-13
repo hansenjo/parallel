@@ -41,19 +41,21 @@ int main( int /* argc */, char** /* argv */ )
 {
   const size_t NDATA = 64;
 
-  ThreadPool<AnalysisThread,int> pool(32);
+  typedef int thread_data_t;
+
+  ThreadPool<AnalysisThread,thread_data_t> pool(32);
 
   // Set up a pool of reusable context buffers
-  int data[NDATA];
+  thread_data_t data[NDATA];
   for( size_t i = 0; i < NDATA; ++i ) {
     pool.addFreeData(&data[i]);
   }
 
   // Add work
   for( size_t i = 0; i < 10000; ++i ) {
-    int* arg = (int*)pool.nextFree();
-    *arg = i;
-    pool.Process(arg);
+    thread_data_t* datap = pool.nextFree();
+    *datap = i;
+    pool.Process(datap);
   }
 
   return 0;
