@@ -5,6 +5,7 @@
 #include <unistd.h>
 
 using namespace std;
+using namespace ThreadUtil;
 
 // stdout is a shared resource, so protect it with a mutex
 static pthread_mutex_t console_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -16,25 +17,25 @@ template< typename Data_t>
 class AnalysisThread : public Thread<Data_t>
 {
 public:
-  AnalysisThread(WorkQueue<Data_t>& _work_queue, WorkQueue<Data_t>& _free_queue)
-    : Thread<Data_t>(_work_queue, _free_queue), seed(pthread_self())
+  AnalysisThread(WorkQueue<Data_t>& work_queue, WorkQueue<Data_t>& free_queue)
+    : Thread<Data_t>(work_queue, free_queue), fSeed(pthread_self())
   {
-    srand(seed);
+    srand(fSeed);
   }
 protected:
   virtual void run()
   {
-    while (Data_t* data = this->work_queue.next()) {
+    while (Data_t* data = this->fWorkQueue.next()) {
       pthread_mutex_lock(&console_mutex);
       cout << "Thread " << pthread_self()
 	   << ", data = " << setfill('0') << setw(5) << *data << endl;
       pthread_mutex_unlock(&console_mutex);
-      usleep((unsigned int)((float)rand_r(&seed)/(float)RAND_MAX*20000));
-      this->free_queue.add(data);
+      usleep((unsigned int)((float)rand_r(&fSeed)/(float)RAND_MAX*20000));
+      this->fFreeQueue.add(data);
     }
   }
 private:
-  unsigned int seed;
+  unsigned int fSeed;
 };
 
 int main( int /* argc */, char** /* argv */ )
