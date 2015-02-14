@@ -1,4 +1,4 @@
-CXXFLAGS = -g -O0 -Wall -Wextra -lpthread -I..
+CXXFLAGS = -g -O -Wall -Wextra -lpthread -I..
 
 all:	ThreadTest
 

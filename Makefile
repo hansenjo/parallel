@@ -4,7 +4,7 @@ OBJ	= $(SRC:.cxx=.o)
 DEP	= $(SRC:.cxx=.d)
 
 DEFINES  =
-CXXFLAGSST = -g -O0 -Wall
+CXXFLAGSST = -g -O -Wall
 #CXXFLAGSST = -O2 -DNDEBUG
 CXXFLAGS = $(CXXFLAGSST) -pthread
 CXXFLAGS += $(INCLUDES) $(DEFINES)
