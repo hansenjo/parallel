@@ -117,11 +117,9 @@ private:
   pthread_cond_t  fWaitCond;
 };
 
-template <typename Data_t>
 class Thread {
 public:
-  Thread( WorkQueue<Data_t>& wq, WorkQueue<Data_t>& fq )
-    : fWorkQueue(wq), fFreeQueue(fq), state(kNone), handle(0) {}
+  Thread() : state(kNone), handle(0) {}
   virtual ~Thread() { assert(state == kJoined); }
 
   void start() {
@@ -140,9 +138,6 @@ public:
 protected:
   virtual void run() = 0;
 
-  WorkQueue<Data_t>& fWorkQueue;
-  WorkQueue<Data_t>& fFreeQueue;
-
 private:
   static void* threadProc( void* param )
   {
@@ -152,10 +147,20 @@ private:
   }
 
   enum EState { kNone, kStarted, kJoined };
-
   EState state;
   pthread_t handle;
+};
 
+template <typename Data_t>
+class PoolWorkerThread : public Thread {
+public:
+  PoolWorkerThread( WorkQueue<Data_t>& wq, WorkQueue<Data_t>& fq,
+		    WorkQueue<Data_t>& rq )
+    : fWorkQueue(wq), fFreeQueue(fq), fResultQueue(rq) {}
+protected:
+  WorkQueue<Data_t>& fWorkQueue;
+  WorkQueue<Data_t>& fFreeQueue;
+  WorkQueue<Data_t>& fResultQueue;
 };
 
 
@@ -165,20 +170,12 @@ public:
   // Allocate a thread pool and set them to work trying to get tasks
   ThreadPool( size_t n ) {
     for (size_t i=0; i<n; ++i) {
-      fThreads.push_back(new Thread_t<Data_t>(fWorkQueue,fFreeQueue));
+      fThreads.push_back(new Thread_t<Data_t>(fWorkQueue,fFreeQueue,fResultQueue));
       fThreads.back()->start();
     }
   }
 
-  // Wait for the threads to finish, then delete them
-  ~ThreadPool() {
-    for (size_t i=0,e=fThreads.size(); i<e; ++i)
-      fWorkQueue.add(0);
-    for (size_t i=0,e=fThreads.size(); i<e; ++i) {
-      fThreads[i]->join();
-      delete fThreads[i];
-    }
-  }
+  ~ThreadPool() { finish(); }
 
   // Queue up data for processing
   void Process( Data_t* data ) {
@@ -193,16 +190,37 @@ public:
     return fFreeQueue.next();
   }
 
+  void addResult( Data_t* data ) {
+    fResultQueue.add(data);
+  }
+
+  Data_t* nextResult() {
+    return fResultQueue.next();
+  }
+
+  // FIXME: Not sure we need this, or if it is a good idea
   Thread_t<Data_t>& GetThread( size_t i ) {
     if( i >= fThreads.size() )
       return 0;
     return fThreads[i];
   }
 
+  // Wait for the threads to finish, then delete them
+  void finish() {
+    for (size_t i=0,e=fThreads.size(); i<e; ++i)
+      fWorkQueue.add(0);
+    for (size_t i=0,e=fThreads.size(); i<e; ++i) {
+      fThreads[i]->join();
+      delete fThreads[i];
+    }
+    fThreads.clear();
+  }
+
 private:
   std::vector<Thread_t<Data_t>*> fThreads;
   WorkQueue<Data_t> fWorkQueue;
   WorkQueue<Data_t> fFreeQueue;
+  WorkQueue<Data_t> fResultQueue;
 };
 
 } // end namespace ThreadPool
