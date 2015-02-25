@@ -8,29 +8,34 @@
 #include "Variable.h"
 #include "Output.h"
 #include "Util.h"
+#include "ThreadPool.hpp"
 
 #include <iostream>
 #include <climits>
 #include <unistd.h>
-#include <pthread.h>
 
 using namespace std;
+using namespace ThreadUtil;
 
-// Definitions for items declared in Podd.h
+// Definitions of items declared in Podd.h
 detlst_t gDets;
 varlst_t gVars;
 
 int debug = 0;
 int compress_output = 0;
 
-// Thread processing
+// Thread context
 struct Context {
   Context();
-  vector<evbuf_t> evbuffer;
-  Decoder   evdata;
-  detlst_t  detectors;
-  varlst_t  variables;
-  int       nev;
+  // Per-thread data
+  vector<evbuf_t> evbuffer; // Copy of event buffer read from file
+  Decoder   evdata;      // Decoded data
+  detlst_t  detectors;   // Detectors with private event-by-event data
+  varlst_t  variables;   // Interface to analysis resuls
+  // Output  output; //TODO: not sure how to handle this yet
+  int       nev;         // Event number given to this thread
+  int       id;          // This thread's ID
+
   static const int INIT_EVSIZE = 1024;
 };
 
@@ -39,34 +44,65 @@ Context::Context()
   evbuffer.reserve(INIT_EVSIZE);
 }
 
-// Loop:
-// - wait for data
-// - feed event data to defined analysis object(s)
-// - notify someone about end of processing
-
-int AnalyzeEvent( Context& ctx )
+template <typename Context>
+class AnalysisThread : public PoolWorkerThread<Context>
 {
-  // Process all defined analysis objects
-
-  int status = ctx.evdata.Load( &ctx.evbuffer[0] );
-  if( status != 0 ) {
-    cerr << "Decoding error = " << status
-	 << " at event " << ctx.nev << endl;
-    return 2;
+public:
+  AnalysisThread( WorkQueue<Context>& wq, WorkQueue<Context>& fq,
+		  WorkQueue<Context>& rq )
+    : PoolWorkerThread<Context>(wq,fq,rq)
+  {
   }
-  for( detlst_t::iterator it = ctx.detectors.begin();
-       it != ctx.detectors.end(); ++it ) {
-    int status;
-    Detector* det = *it;
 
-    det->Clear();
-    if( (status = det->Decode(ctx.evdata)) != 0 )
-      return status;
-    if( (status = det->Analyze()) != 0 )
-      return status;
+protected:
+  virtual void run()
+  {
+    while( Context* ctx = this->fWorkQueue.next() ) {
+
+      // Process all defined analysis objects
+
+      int status = ctx->evdata.Load( &ctx->evbuffer[0] );
+      if( status != 0 ) {
+	cerr << "Decoding error = " << status
+	     << " at event " << ctx->nev << endl;
+	return; //2
+      }
+      for( detlst_t::iterator it = ctx->detectors.begin();
+	   it != ctx->detectors.end(); ++it ) {
+	int status;
+	Detector* det = *it;
+
+	det->Clear();
+	if( (status = det->Decode(ctx->evdata)) != 0 )
+	  return;// status;
+	if( (status = det->Analyze()) != 0 )
+	  return;// status;
+      }
+      this->fResultQueue.add(ctx);
+    }
   }
-  return 0;
-}
+private:
+};
+
+template <typename Pool_t, typename Context>
+class OutputThread : public Thread
+{
+public:
+  OutputThread( Pool_t& pool ) : fPool(pool) {}
+
+  void Close() {}
+
+protected:
+  virtual void run()
+  {
+    while( Context* ctx = fPool.nextResult() ) {
+      //TODO: actually output results
+      fPool.addFreeData(ctx);
+    }
+  }
+private:
+  Pool_t& fPool;
+};
 
 static string prgname;
 
@@ -183,13 +219,6 @@ int main( int argc, char* const *argv )
   if( debug > 0 )
     cout << "Initializing " << nthreads << " analysis threads" << endl;
 
-  vector<Context> ctx(nthreads);
-  for( vector<Context>::size_type i = 0; i < ctx.size(); ++i ) {
-    // shallow copy for now, to be changed
-    ctx[i].detectors = gDets;
-    ctx[i].variables = gVars;
-  }
-
   // Start threads
 
   // Open input
@@ -197,22 +226,36 @@ int main( int argc, char* const *argv )
   if( inp.Open() )
     return 2;
 
+  typedef ThreadPool<AnalysisThread,Context> thread_pool_t;
+
+  thread_pool_t pool(nthreads);
+
   // Configure output
-  Output output;
   if( compress_output > 0 && odat_file.size() > 3
       && odat_file.substr(odat_file.size()-3) != ".gz" )
     odat_file.append(".gz");
-  if( output.Init( odat_file.c_str(), odef_file.c_str(),
-		   ctx[0].variables) != 0 ) {
-    inp.Close();
-    return 3;
-  }
+  //Output output;
+  // if( output.Init( odat_file.c_str(), odef_file.c_str(),
+  // 		   ctx[0].variables) != 0 ) {
+  //   inp.Close();
+  //   return 3;
+  // }
+  OutputThread<thread_pool_t,Context> output(pool);
+  output.start();
 
   unsigned long nev = 0;
 
+  vector<Context> ctx(nthreads);
+  for( vector<Context>::size_type i = 0; i < ctx.size(); ++i ) {
+    // shallow copy for now, to be changed
+    ctx[i].detectors = gDets;
+    ctx[i].variables = gVars;
+    pool.addFreeData( &ctx[i] );
+  }
+
   // Loop: Read one event and hand it off to an idle thread
   while( inp.ReadEvent() == 0 && nev < nev_max ) {
-    int status;
+    //    int status;
     ++nev;
     if( mark && (nev%1000) == 0 )
       cout << nev << endl;
@@ -220,22 +263,20 @@ int main( int argc, char* const *argv )
     if( debug > 1 )
       cout << "Event " << nev << endl;
 
-    ctx[0].evbuffer.assign( inp.GetEvBuffer(),
-			 inp.GetEvBuffer()+inp.GetEvWords() );
-    ctx[0].nev = nev;
-    if( (status = AnalyzeEvent(ctx[0])) != 0 ) {
-      cerr << "Analysis error = " << status << " at event " << nev << endl;
-      break;
-    }
+    Context* curCtx = pool.nextFree();
 
-    if( debug > 1 )
-      PrintVarList(gVars);
+    curCtx->evbuffer.assign( inp.GetEvBuffer(),
+			     inp.GetEvBuffer()+inp.GetEvWords() );
+    curCtx->nev = nev;
+    pool.Process( curCtx );
+    // if( (status = AnalyzeEvent(ctx[0])) != 0 ) {
+    //   cerr << "Analysis error = " << status << " at event " << nev << endl;
+    //   break;
+    // }
 
-    // Write output
-    if( (status = output.Process(nev)) != 0 ) {
-      cerr << "Output error = " << status << endl;
-      break;
-    }
+    // if( debug > 1 )
+    //   PrintVarList(gVars);
+
   }
   if( debug > 0 ) {
     cout << "Normal end of file" << endl;
