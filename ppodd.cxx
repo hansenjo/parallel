@@ -14,8 +14,14 @@
 #include <climits>
 #include <unistd.h>
 
+// For output module
+#include <fstream>
+#include <boost/iostreams/filtering_stream.hpp>
+#include <boost/iostreams/filter/gzip.hpp>
+
 using namespace std;
 using namespace ThreadUtil;
+using namespace boost::iostreams;
 
 // Definitions of items declared in Podd.h
 detlst_t gDets;
@@ -32,7 +38,7 @@ struct Context {
   Decoder   evdata;      // Decoded data
   detlst_t  detectors;   // Detectors with private event-by-event data
   varlst_t  variables;   // Interface to analysis resuls
-  // Output  output; //TODO: not sure how to handle this yet
+  Output    output; //TODO: not sure how to handle this yet
   int       nev;         // Event number given to this thread
   int       id;          // This thread's ID
 
@@ -88,20 +94,60 @@ template <typename Pool_t, typename Context>
 class OutputThread : public Thread
 {
 public:
-  OutputThread( Pool_t& pool ) : fPool(pool) {}
+  OutputThread( Pool_t& pool, const char* odat_file ) : fPool(pool)
+  {
+    if( !odat_file ||!*odat_file )
+      return; // TODO: throw exception
 
-  void Close() {}
+    // Open output file and set up filter chain
+    outs.reset();
+    outp.close();
+    outp.open( odat_file, ios::out|ios::trunc|ios::binary);
+    if( !outp ) {
+      cerr << "Error opening output data file " << odat_file << endl;
+      return;
+    }
+    if( compress_output > 0 )
+      outs.push(gzip_compressor());
+    outs.push(outp);
+
+    outs << "Header goes here ... ";
+    // outs << "Event" << field_sep;
+    // for( vvec_t::iterator it = vars.begin(); it != vars.end(); ) {
+    //   Variable* var = *it;
+    //   outs << var->GetName();
+    //   ++it;
+    //   if( it != vars.end() )
+    // 	outs << field_sep;
+    // }
+    outs << endl;
+  }
+
+  ~OutputThread()
+  {
+    Close();
+  }
+
+  int Close()
+  {
+    outs.reset();
+    outp.close();
+    return 0;
+  }
 
 protected:
   virtual void run()
   {
     while( Context* ctx = fPool.nextResult() ) {
-      //TODO: actually output results
+      ctx->output.Process( ctx->nev );
+      // TODO: handle errors
       fPool.addFreeData(ctx);
     }
   }
 private:
   Pool_t& fPool;
+  std::ofstream outp;
+  boost::iostreams::filtering_ostream outs;
 };
 
 static string prgname;
@@ -240,7 +286,7 @@ int main( int argc, char* const *argv )
   //   inp.Close();
   //   return 3;
   // }
-  OutputThread<thread_pool_t,Context> output(pool);
+  OutputThread<thread_pool_t,Context> output( pool, odat_file.c_str() );
   output.start();
 
   unsigned long nev = 0;
@@ -269,14 +315,6 @@ int main( int argc, char* const *argv )
 			     inp.GetEvBuffer()+inp.GetEvWords() );
     curCtx->nev = nev;
     pool.Process( curCtx );
-    // if( (status = AnalyzeEvent(ctx[0])) != 0 ) {
-    //   cerr << "Analysis error = " << status << " at event " << nev << endl;
-    //   break;
-    // }
-
-    // if( debug > 1 )
-    //   PrintVarList(gVars);
-
   }
   if( debug > 0 ) {
     cout << "Normal end of file" << endl;

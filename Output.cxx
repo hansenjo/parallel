@@ -9,11 +9,8 @@
 
 #include <boost/tokenizer.hpp>
 #include <boost/algorithm/string.hpp>
-#include <boost/iostreams/filtering_stream.hpp>
-#include <boost/iostreams/filter/gzip.hpp>
 
 using namespace std;
-using namespace boost::iostreams;
 
 typedef vector<Variable*> vvec_t;
 
@@ -47,16 +44,13 @@ Output::Output()
 
 int Output::Close()
 {
-  outs.reset();
-  outp.close();
   vars.clear();
   return 0;
 }
 
-int Output::Init( const char* odat_file, const char* odef_file,
-		  const varlst_t& varlst )
+int Output::Init( const char* odef_file, const varlst_t& varlst )
 {
-  if( !odat_file || !*odat_file || !odef_file || !*odef_file )
+  if( !odef_file || !*odef_file )
     return 1;
 
   vars.clear();
@@ -91,47 +85,25 @@ int Output::Init( const char* odat_file, const char* odef_file,
     return 3;
   }
 
-  // Open output file and set up filter chain
-  outs.reset();
-  outp.close();
-  outp.open( odat_file, ios::out|ios::trunc|ios::binary);
-  if( !outp ) {
-    cerr << "Error opening output data file " << odat_file << endl;
-    return 4;
-  }
-  if( compress_output > 0 )
-    outs.push(gzip_compressor());
-  outs.push(outp);
-
-  outs << "Event" << field_sep;
-  for( vvec_t::iterator it = vars.begin(); it != vars.end(); ) {
-    Variable* var = *it;
-    outs << var->GetName();
-    ++it;
-    if( it != vars.end() )
-      outs << field_sep;
-  }
-  outs << endl;
-
   return 0;
 }
 
 int Output::Process( int iev )
 {
-  if( !outp.is_open() || !outp.good() || !outs.good() )
-    return 1;
+  // if( !outp.is_open() || !outp.good() || !outs.good() )
+  //   return 1;
 
-  outs << iev;
-  if( !vars.empty() )
-    outs << field_sep;
-  for( vvec_t::iterator it = vars.begin(); it != vars.end(); ) {
-    Variable* var = *it;
-    outs << var->GetValue();
-    ++it;
-    if( it != vars.end() )
-      outs << field_sep;
-  }
-  outs << endl;
+  // outs << iev;
+  // if( !vars.empty() )
+  //   outs << field_sep;
+  // for( vvec_t::iterator it = vars.begin(); it != vars.end(); ) {
+  //   Variable* var = *it;
+  //   outs << var->GetValue();
+  //   ++it;
+  //   if( it != vars.end() )
+  //     outs << field_sep;
+  // }
+  // outs << endl;
 
   return 0;
 }
