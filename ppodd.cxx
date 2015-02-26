@@ -30,6 +30,8 @@ varlst_t gVars;
 int debug = 0;
 int compress_output = 0;
 
+typedef vector<OutputElement*> voutp_t;
+
 // Thread context
 struct Context {
   Context();
@@ -37,8 +39,8 @@ struct Context {
   vector<evbuf_t> evbuffer; // Copy of event buffer read from file
   Decoder   evdata;      // Decoded data
   detlst_t  detectors;   // Detectors with private event-by-event data
-  varlst_t  variables;   // Interface to analysis resuls
-  Output    output; //TODO: not sure how to handle this yet
+  varlst_t  variables;   // Interface to analysis results
+  voutp_t   outvars;     // Output definitions
   int       nev;         // Event number given to this thread
   int       id;          // This thread's ID
 
@@ -90,6 +92,8 @@ protected:
 private:
 };
 
+static const char* field_sep = ", ";
+
 template <typename Pool_t, typename Context>
 class OutputThread : public Thread
 {
@@ -138,9 +142,27 @@ public:
 protected:
   virtual void run()
   {
+    if( !outp.is_open() )
+      return;
+
     while( Context* ctx = fPool.nextResult() ) {
-      ctx->output.Process( ctx->nev );
-      // TODO: handle errors
+
+      if( !outp.good() || !outs.good() )
+	// TODO: handle errors properly
+	return;
+
+      outs << ctx->nev;
+      if( !ctx->outvars.empty() )
+	outs << field_sep;
+      for( voutp_t::iterator it = ctx->outvars.begin(); it != ctx->outvars.end(); ) {
+	OutputElement* var = *it;
+	var->write( outs );
+	++it;
+	if( it != ctx->outvars.end() )
+	  outs << field_sep;
+      }
+      outs << endl;
+
       fPool.addFreeData(ctx);
     }
   }

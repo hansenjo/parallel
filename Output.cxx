@@ -12,9 +12,19 @@
 
 using namespace std;
 
-typedef vector<Variable*> vvec_t;
+PlainVariable::PlainVariable( Variable* var ) : fVar(var)
+{
+}
 
-static const char* field_sep = ", ";
+ostrm_t& PlainVariable::write( ostrm_t& os ) const
+{
+  os << fVar->GetValue();
+  return os;
+}
+
+
+#if 0
+typedef vector<Variable*> vvec_t;
 
 static bool WildcardMatch( string candidate, const string& expr )
 {
@@ -36,16 +46,6 @@ static bool WildcardMatch( string candidate, const string& expr )
       ++tok;
     }
   return (tok == tokens.end());
-}
-
-Output::Output()
-{
-}
-
-int Output::Close()
-{
-  vars.clear();
-  return 0;
 }
 
 int Output::Init( const char* odef_file, const varlst_t& varlst )
@@ -88,25 +88,6 @@ int Output::Init( const char* odef_file, const varlst_t& varlst )
   return 0;
 }
 
-int Output::Process( int iev )
-{
-  // if( !outp.is_open() || !outp.good() || !outs.good() )
-  //   return 1;
-
-  // outs << iev;
-  // if( !vars.empty() )
-  //   outs << field_sep;
-  // for( vvec_t::iterator it = vars.begin(); it != vars.end(); ) {
-  //   Variable* var = *it;
-  //   outs << var->GetValue();
-  //   ++it;
-  //   if( it != vars.end() )
-  //     outs << field_sep;
-  // }
-  // outs << endl;
-
-  return 0;
-}
 
 void Output::Print() const
 {
@@ -114,3 +95,4 @@ void Output::Print() const
     (*it)->Print();
   }
 }
+#endif

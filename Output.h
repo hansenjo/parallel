@@ -6,19 +6,28 @@
 
 #include "Podd.h"
 #include <vector>
+#include <boost/iostreams/filtering_stream.hpp>
 
-class Output {
+typedef boost::iostreams::filtering_ostream ostrm_t;
+
+class OutputElement {
 public:
-  Output();
+  OutputElement() {}
 
-  int Close();
-  int Init( const char* odef_file, const varlst_t& varlst );
-  int Process( int iev );
+  virtual ostrm_t& write( ostrm_t& os ) const = 0;
 
-  void Print() const;
+};
+
+class PlainVariable : public OutputElement {
+public:
+  PlainVariable( Variable* var );
+
+  virtual ostrm_t& write( ostrm_t& os ) const;
 
 private:
-  std::vector<Variable*> vars;
+  Variable* fVar;
 };
+
+std::ostream& operator<<( std::ostream& os, const OutputElement& elem );
 
 #endif
