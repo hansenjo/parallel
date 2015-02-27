@@ -24,6 +24,11 @@ void DetectorTypeB::Clear()
   slope = inter = cov11 = cov22 = cov12 = chi2 = 1e38;
 }
 
+Detector* DetectorTypeB::Clone() const
+{
+  return new DetectorTypeB(*this);
+}
+
 int DetectorTypeB::Analyze()
 {
   // This detector type performs a linear fit to the data
@@ -81,6 +86,6 @@ int DetectorTypeB::DefineVariables( bool do_remove )
     { "chi2",  "Chi2",                 &chi2 },
     { 0 }
   };
-  DefineVarsFromList( defs, GetName().c_str(), gVars, do_remove );
+  DefineVarsFromList( defs, GetName().c_str(), fVars, do_remove );
   return 0;
 }

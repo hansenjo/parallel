@@ -25,7 +25,6 @@ using namespace boost::iostreams;
 
 // Definitions of items declared in Podd.h
 detlst_t gDets;
-varlst_t gVars;
 
 int debug = 0;
 int compress_output = 0;
@@ -35,6 +34,9 @@ typedef vector<OutputElement*> voutp_t;
 // Thread context
 struct Context {
   Context();
+  ~Context();
+  int Init( const char* odef_file );
+
   // Per-thread data
   vector<evbuf_t> evbuffer; // Copy of event buffer read from file
   Decoder   evdata;      // Decoded data
@@ -43,13 +45,82 @@ struct Context {
   voutp_t   outvars;     // Output definitions
   int       nev;         // Event number given to this thread
   int       id;          // This thread's ID
+  bool      is_init;     // Init() called successfully
 
   static const int INIT_EVSIZE = 1024;
 };
 
-Context::Context()
+Context::Context() : is_init(false)
 {
   evbuffer.reserve(INIT_EVSIZE);
+}
+
+Context::~Context()
+{
+  DeleteContainer( outvars );
+  DeleteContainer( detectors );
+  if( !variables.empty() ) {
+    cerr << "Warning: variable list not empty!" << endl;
+  }
+  DeleteContainer( variables );
+}
+
+int Context::Init( const char* odef_file )
+{
+  // Initialize current context
+
+  // Initialize detectors
+  int err = 0;
+  for( detlst_t::iterator it = detectors.begin(); it != detectors.end(); ++it ) {
+    int status;
+    Detector* det = *it;
+    det->SetVarList(variables);
+    if( (status = det->Init()) != 0 ) {
+      err = status;
+      cerr << "Error initializing detector " << det->GetName() << endl;
+    }
+  }
+  if( err )
+    return 1;
+
+  // Read output definitions & configure output
+  if( !odef_file || !*odef_file )
+    return 2;
+
+  outvars.clear();
+
+  ifstream inp(odef_file);
+  if( !inp ) {
+    cerr << "Error opening output definition file " << odef_file << endl;
+    return 2;
+  }
+  string line;
+  while( getline(inp,line) ) {
+    // Wildcard match
+    string::size_type pos = line.find_first_not_of(" \t");
+    if( line.empty() || pos == string::npos || line[pos] == '#' )
+      continue;
+    line.erase(0,pos);
+    pos = line.find_first_of(" \t");
+    if( pos != string::npos )
+      line.erase(pos);
+    for( varlst_t::const_iterator it = variables.begin();
+	 it != variables.end(); ++it ) {
+      Variable* var = *it;
+      if( WildcardMatch(var->GetName(), line) )
+	outvars.push_back( new PlainVariable(var) );
+    }
+  }
+  inp.close();
+
+  if( outvars.empty() ) {
+    // Noting to do
+    cerr << "No output variables defined. Check " << odef_file << endl;
+    return 3;
+  }
+
+  is_init = true;
+  return 0;
 }
 
 template <typename Context>
@@ -98,7 +169,8 @@ template <typename Pool_t, typename Context>
 class OutputThread : public Thread
 {
 public:
-  OutputThread( Pool_t& pool, const char* odat_file ) : fPool(pool)
+  OutputThread( Pool_t& pool, const char* odat_file )
+    : fPool(pool), fHeaderWritten(false)
   {
     if( !odat_file ||!*odat_file )
       return; // TODO: throw exception
@@ -114,17 +186,6 @@ public:
     if( compress_output > 0 )
       outs.push(gzip_compressor());
     outs.push(outp);
-
-    outs << "Header goes here ... ";
-    // outs << "Event" << field_sep;
-    // for( vvec_t::iterator it = vars.begin(); it != vars.end(); ) {
-    //   Variable* var = *it;
-    //   outs << var->GetName();
-    //   ++it;
-    //   if( it != vars.end() )
-    // 	outs << field_sep;
-    // }
-    outs << endl;
   }
 
   ~OutputThread()
@@ -151,10 +212,27 @@ protected:
 	// TODO: handle errors properly
 	return;
 
+      if( !fHeaderWritten ) {
+	outs << "Event";
+	if( !ctx->outvars.empty() )
+	  outs << field_sep;
+	for( voutp_t::const_iterator it = ctx->outvars.begin();
+	     it != ctx->outvars.end(); ) {
+	  OutputElement* var = *it;
+	  outs << var->GetName();
+	  ++it;
+	  if( it != ctx->outvars.end() )
+	    outs << field_sep;
+	}
+	outs << endl;
+	fHeaderWritten = true;
+      }
+
       outs << ctx->nev;
       if( !ctx->outvars.empty() )
 	outs << field_sep;
-      for( voutp_t::iterator it = ctx->outvars.begin(); it != ctx->outvars.end(); ) {
+      for( voutp_t::const_iterator it = ctx->outvars.begin();
+	   it != ctx->outvars.end(); ) {
 	OutputElement* var = *it;
 	var->write( outs );
 	++it;
@@ -170,6 +248,7 @@ private:
   Pool_t& fPool;
   std::ofstream outp;
   boost::iostreams::filtering_ostream outs;
+  bool fHeaderWritten;
 };
 
 static string prgname;
@@ -264,22 +343,8 @@ int main( int argc, char* const *argv )
   gDets.push_back( new DetectorTypeA("detA",1) );
   gDets.push_back( new DetectorTypeB("detB",2) );
 
-  // Initialize
-  // (This could be one thread per detector)
-  int err = 0;
-  for( detlst_t::iterator it = gDets.begin(); it != gDets.end(); ++it ) {
-    int status;
-    Detector* det = *it;
-    if( (status = det->Init()) != 0 ) {
-      err = status;
-      cerr << "Error initializing detector " << det->GetName() << endl;
-    }
-  }
-  if( err )
-    return 1;
-
-  if( debug > 1 )
-    PrintVarList(gVars);
+  // if( debug > 1 )
+  //   PrintVarList(gVars);
 
   // Set up thread contexts. Copy analysis objects.
   if( nthreads <= 0 || nthreads >= ncpu )
@@ -287,43 +352,34 @@ int main( int argc, char* const *argv )
   if( debug > 0 )
     cout << "Initializing " << nthreads << " analysis threads" << endl;
 
-  // Start threads
+  typedef ThreadPool<AnalysisThread,Context> thread_pool_t;
+
+  thread_pool_t pool(nthreads);
+
+  vector<Context> ctx(nthreads);
+  for( vector<Context>::size_type i = 0; i < ctx.size(); ++i ) {
+    // Deep copy of container objects
+    CopyContainer( gDets, ctx[i].detectors );
+    pool.addFreeData( &ctx[i] );
+  }
+
+  // Configure output
+  if( compress_output > 0 && odat_file.size() > 3
+      && odat_file.substr(odat_file.size()-3) != ".gz" )
+    odat_file.append(".gz");
+
+  OutputThread<thread_pool_t,Context> output( pool, odat_file.c_str() );
+  output.start();
+
+  unsigned long nev = 0;
 
   // Open input
   DataFile inp(input_file.c_str());
   if( inp.Open() )
     return 2;
 
-  typedef ThreadPool<AnalysisThread,Context> thread_pool_t;
-
-  thread_pool_t pool(nthreads);
-
-  // Configure output
-  if( compress_output > 0 && odat_file.size() > 3
-      && odat_file.substr(odat_file.size()-3) != ".gz" )
-    odat_file.append(".gz");
-  //Output output;
-  // if( output.Init( odat_file.c_str(), odef_file.c_str(),
-  // 		   ctx[0].variables) != 0 ) {
-  //   inp.Close();
-  //   return 3;
-  // }
-  OutputThread<thread_pool_t,Context> output( pool, odat_file.c_str() );
-  output.start();
-
-  unsigned long nev = 0;
-
-  vector<Context> ctx(nthreads);
-  for( vector<Context>::size_type i = 0; i < ctx.size(); ++i ) {
-    // shallow copy for now, to be changed
-    ctx[i].detectors = gDets;
-    ctx[i].variables = gVars;
-    pool.addFreeData( &ctx[i] );
-  }
-
   // Loop: Read one event and hand it off to an idle thread
   while( inp.ReadEvent() == 0 && nev < nev_max ) {
-    //    int status;
     ++nev;
     if( mark && (nev%1000) == 0 )
       cout << nev << endl;
@@ -332,6 +388,15 @@ int main( int argc, char* const *argv )
       cout << "Event " << nev << endl;
 
     Context* curCtx = pool.nextFree();
+    // Init if necessary
+    //TODO: split up Init:
+    // (1) Read database and all other related things, do before cloning
+    //     detectors
+    // (2) DefineVariables: do in threads
+    if( !curCtx->is_init ) {
+      if( curCtx->Init(odef_file.c_str()) != 0 )
+	break;
+    };
 
     curCtx->evbuffer.assign( inp.GetEvBuffer(),
 			     inp.GetEvBuffer()+inp.GetEvWords() );
@@ -344,6 +409,11 @@ int main( int argc, char* const *argv )
   }
 
   inp.Close();
+
+  // Terminate worker threads
+  pool.finish();
+  pool.addResult(0);
+  output.join();
   output.Close();
 
   DeleteContainer( gDets );

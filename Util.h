@@ -2,6 +2,32 @@
 #define PPODD_UTIL
 
 #include <algorithm>
+#include <string>
+
+//___________________________________________________________________________
+template< typename Container>
+class CopyObject {
+public:
+  CopyObject( Container& target ) : m_target(target) {}
+
+  template< typename T >
+  void operator() ( const T* ptr )
+  {
+    m_target.push_back( ptr->Clone() );
+  }
+private:
+  Container& m_target;
+};
+
+//___________________________________________________________________________
+template< typename Container >
+inline void CopyContainer( const Container& from, Container& to )
+{
+  // Deep-copy all elements of 'from' container of pointers to 'to' Container
+  to.clear();
+  CopyObject<Container> copy(to);
+  for_each( from.begin(), from.end(), copy );
+}
 
 //___________________________________________________________________________
 struct DeleteObject {
@@ -32,5 +58,6 @@ inline void DeleteContainerOfContainers( ContainerOfContainers& cc )
 // Utility functions in Util.cxx
 
 int GetCPUcount();
+bool WildcardMatch( const std::string& candidate, const std::string& expr );
 
 #endif

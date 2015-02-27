@@ -9,7 +9,7 @@
 using namespace std;
 
 Detector::Detector( const char* _name, int _imod )
-  : name(_name), type("--baseclass--"), imod(_imod-1)
+  : name(_name), type("--baseclass--"), imod(_imod-1), fVars(0)
 {
   if( imod<0 ) {
     cerr << "\"" << name << "\": "
@@ -66,9 +66,9 @@ int Detector::DefineVariables( bool )
 
 // Declared in Podd.h
 int DefineVarsFromList( VarDef_t* defs, const char* prefix,
-			varlst_t& varlst, bool remove )
+			varlst_t* varlst, bool remove )
 {
-  if( !defs )
+  if( !defs || !varlst )
     return 0;
 
   int ndef = 0;
@@ -80,27 +80,27 @@ int DefineVarsFromList( VarDef_t* defs, const char* prefix,
       varname.append(".");
     }
     varname.append(def->name);
-    varlst_t::iterator it = varlst.begin();
-    for( ; it != varlst.end(); ++it ) {
+    varlst_t::iterator it = varlst->begin();
+    for( ; it != varlst->end(); ++it ) {
       if( (*it)->GetName() == varname ) {
 	break;
       }
     }
     if( remove ) {
-      if( it != varlst.end() ) {
+      if( it != varlst->end() ) {
 	delete *it;
-	varlst.erase(it);
+	varlst->erase(it);
 	++ndef;
       }
     } else {
-      if( it != varlst.end() ) {
+      if( it != varlst->end() ) {
 	cerr << "Variable " << varname << " already exists"
 	  ", skipped" << endl;
       } else if( !def->loc ) {
 	cerr << "Invalid location pointer for variable " << varname
 	     << ", skipped " << endl;
       } else {
-	varlst.push_back( new Variable(varname.c_str(), def->note, def->loc) );
+	varlst->push_back( new Variable(varname.c_str(), def->note, def->loc) );
 	++ndef;
       }
     }

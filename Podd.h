@@ -14,7 +14,6 @@ typedef std::vector<Detector*> detlst_t;
 
 // Legacy global lists
 extern detlst_t gDets;
-extern varlst_t gVars;
 
 extern int debug;
 extern int compress_output;
@@ -28,7 +27,7 @@ struct VarDef_t {
 enum { kDefine = false, kRemove = true };
 
 int DefineVarsFromList( VarDef_t* defs, const char* prefix,
-			varlst_t& varlst, bool remove = false );
+			varlst_t* varlst, bool remove = false );
 
 void PrintVarList( varlst_t& varlst );
 

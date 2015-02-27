@@ -27,6 +27,12 @@ void DetectorTypeA::Clear()
   max = -min;
 }
 
+Detector* DetectorTypeA::Clone() const
+{
+  return new DetectorTypeA(*this);
+}
+
+
 int DetectorTypeA::Decode( Decoder& evdata )
 {
   int status = Detector::Decode( evdata );
@@ -75,6 +81,6 @@ int DetectorTypeA::DefineVariables( bool do_remove )
     { "geom", "Geometric mean of data", &geom },
     { 0 }
   };
-  DefineVarsFromList( defs, GetName().c_str(), gVars, do_remove );
+  DefineVarsFromList( defs, GetName().c_str(), fVars, do_remove );
   return 0;
 }

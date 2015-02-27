@@ -15,6 +15,7 @@ public:
   virtual ~DetectorTypeB();
 
   virtual void Clear();
+  virtual Detector* Clone() const;
   virtual int  Analyze();
   virtual void Print() const;
 
