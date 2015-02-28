@@ -13,6 +13,7 @@
 #include <iostream>
 #include <climits>
 #include <unistd.h>
+#include <algorithm>  // for std::swap
 
 // For output module
 #include <fstream>
@@ -39,7 +40,7 @@ struct Context {
   int Init( const char* odef_file );
 
   // Per-thread data
-  vector<evbuf_t> evbuffer; // Copy of event buffer read from file
+  evbuf_t*  evbuffer;    // Event buffer read from file
   Decoder   evdata;      // Decoded data
   detlst_t  detectors;   // Detectors with private event-by-event data
   varlst_t  variables;   // Interface to analysis results
@@ -51,19 +52,16 @@ struct Context {
   static const int INIT_EVSIZE = 1024;
 };
 
-Context::Context() : is_init(false)
+Context::Context() : evbuffer(0), is_init(false)
 {
-  evbuffer.reserve(INIT_EVSIZE);
 }
 
 Context::~Context()
 {
   DeleteContainer( outvars );
   DeleteContainer( detectors );
-  if( !variables.empty() ) {
-    cerr << "Warning: variable list not empty!" << endl;
-  }
   DeleteContainer( variables );
+  delete [] evbuffer;
 }
 
 int Context::Init( const char* odef_file )
@@ -120,6 +118,9 @@ int Context::Init( const char* odef_file )
     return 3;
   }
 
+  evbuffer = new evbuf_t[INIT_EVSIZE];
+  evbuffer[0] = 0;
+
   is_init = true;
   return 0;
 }
@@ -142,7 +143,7 @@ protected:
 
       // Process all defined analysis objects
 
-      int status = ctx->evdata.Load( &ctx->evbuffer[0] );
+      int status = ctx->evdata.Load( ctx->evbuffer );
       if( status != 0 ) {
 	cerr << "Decoding error = " << status
 	     << " at event " << ctx->nev << endl;
@@ -410,8 +411,7 @@ int main( int argc, char* const *argv )
 	break;
     };
 
-    curCtx->evbuffer.assign( inp.GetEvBuffer(),
-			     inp.GetEvBuffer()+inp.GetEvWords() );
+    swap( curCtx->evbuffer, inp.GetEvBuffer() );
     curCtx->nev = nev;
     pool.Process( curCtx );
   }
