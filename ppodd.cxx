@@ -352,6 +352,11 @@ int main( int argc, char* const *argv )
 
   default_names( input_file, odef_file, odat_file );
 
+  // Open input
+  DataFile inp(input_file.c_str());
+  if( inp.Open() )
+    return 2;
+
   // Set up analysis objects
   gDets.push_back( new DetectorTypeA("detA",1) );
   gDets.push_back( new DetectorTypeB("detB",2) );
@@ -385,11 +390,6 @@ int main( int argc, char* const *argv )
   output.start();
 
   unsigned long nev = 0;
-
-  // Open input
-  DataFile inp(input_file.c_str());
-  if( inp.Open() )
-    return 2;
 
   // Loop: Read one event and hand it off to an idle thread
   while( inp.ReadEvent() == 0 && nev < nev_max ) {
