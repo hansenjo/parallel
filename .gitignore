@@ -21,6 +21,7 @@ generate
 *.png
 *.patch
 *.diff
+callgrind.out.*
 
 # Examples
 Examples
