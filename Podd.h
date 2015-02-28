@@ -12,9 +12,6 @@ class Detector;
 typedef std::list<Variable*> varlst_t;
 typedef std::vector<Detector*> detlst_t;
 
-// Legacy global lists
-extern detlst_t gDets;
-
 extern int debug;
 extern int compress_output;
 
