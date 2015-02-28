@@ -28,6 +28,7 @@ detlst_t gDets;
 
 int debug = 0;
 int compress_output = 0;
+int delay_us = 0;
 
 typedef vector<OutputElement*> voutp_t;
 
@@ -123,20 +124,21 @@ int Context::Init( const char* odef_file )
   return 0;
 }
 
-template <typename Context>
-class AnalysisThread : public PoolWorkerThread<Context>
+template <typename Context_t>
+class AnalysisThread : public PoolWorkerThread<Context_t>
 {
 public:
-  AnalysisThread( WorkQueue<Context>& wq, WorkQueue<Context>& fq,
-		  WorkQueue<Context>& rq )
-    : PoolWorkerThread<Context>(wq,fq,rq)
+  AnalysisThread( WorkQueue<Context_t>& wq, WorkQueue<Context_t>& fq,
+		  WorkQueue<Context_t>& rq )
+    : PoolWorkerThread<Context_t>(wq,fq,rq), fSeed(pthread_self())
   {
+    srand(fSeed);
   }
 
 protected:
   virtual void run()
   {
-    while( Context* ctx = this->fWorkQueue.next() ) {
+    while( Context_t* ctx = this->fWorkQueue.next() ) {
 
       // Process all defined analysis objects
 
@@ -157,15 +159,21 @@ protected:
 	if( (status = det->Analyze()) != 0 )
 	  return;// status;
       }
+
+      // If requested, add random delay
+      if( delay_us > 0 )
+	usleep((unsigned int)((float)rand_r(&fSeed)/(float)RAND_MAX*2*delay_us));
+
       this->fResultQueue.add(ctx);
     }
   }
 private:
+  unsigned int fSeed;
 };
 
 static const char* field_sep = ", ";
 
-template <typename Pool_t, typename Context>
+template <typename Pool_t, typename Context_t>
 class OutputThread : public Thread
 {
 public:
@@ -206,7 +214,7 @@ protected:
     if( !outp.is_open() )
       return;
 
-    while( Context* ctx = fPool.nextResult() ) {
+    while( Context_t* ctx = fPool.nextResult() ) {
 
       if( !outp.good() || !outs.good() )
 	// TODO: handle errors properly
@@ -282,6 +290,7 @@ static void usage()
        << " [ -d debug_level ]\tset debug level" << endl
        << " [ -n nev_max ]\t\tset max number of events" << endl
        << " [ -t nthreads ]\t\tcreate at most nthreads (default = n_cpus)" << endl
+       << " [ -y us ]\t\t\tAdd us microseconds average random delay per event" << endl
        << " [ -m ]\t\t\tMark progress" << endl
        << " [ -z ]\t\t\tCompress output with gzip" << endl
        << " [ -h ]\t\t\tPrint this help message" << endl;
@@ -302,7 +311,7 @@ int main( int argc, char* const *argv )
   if( prgname.size() >= 2 && prgname.substr(0,2) == "./" )
     prgname.erase(0,2);
 
-  while( (opt = getopt(argc, argv, "c:d:n:o:t:zmh")) != -1 ) {
+  while( (opt = getopt(argc, argv, "c:d:n:o:t:y:zmh")) != -1 ) {
     switch (opt) {
     case 'c':
       odef_file = optarg;
@@ -318,6 +327,9 @@ int main( int argc, char* const *argv )
       break;
     case 't':
       nthreads = atoi(optarg);
+      break;
+    case 'y':
+      delay_us = atoi(optarg);
       break;
     case 'z':
       compress_output = 1;
