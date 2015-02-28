@@ -39,9 +39,12 @@ int Detector::Decode( Decoder& evdata )
   if( ndata > 0 ) {
     if( debug > 3 )
       cout << ", data = ";
-    for( int i = 0; i < ndata; ++i ) {
-      data.push_back(evdata.GetData(imod,i));
-      if( debug > 3 ) {
+
+    double* pdata = evdata.GetDataBuf(imod);
+    data.assign( pdata, pdata+ndata );
+
+    if( debug > 3 ) {
+      for( int i = 0; i < ndata; ++i ) {
 	cout << evdata.GetData(imod,i);
 	if( i+1 != ndata )
 	  cout << ", ";

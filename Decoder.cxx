@@ -41,18 +41,3 @@ int Decoder::Load( evbuf_t* evbuffer )
   }
   return 0;
 }
-
-
-int Decoder::GetNdata( int m ) const
-{
-  if( event.module[m] == 0 )
-    return 0;
-
-  return event.module[m]->header.module_ndata;
-}
-
-double Decoder::GetData( int m, int i ) const
-{
-  assert( event.module[m] );
-  return event.module[m]->data[i];
-}
