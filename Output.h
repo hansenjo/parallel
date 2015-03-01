@@ -15,20 +15,30 @@ public:
   OutputElement() {}
 
   virtual const std::string& GetName() const = 0;
-  virtual ostrm_t& write( ostrm_t& os ) const = 0;
+  virtual ostrm_t& write( ostrm_t& os, bool headerinfo = false ) const = 0;
 };
 
 class PlainVariable : public OutputElement {
 public:
-  PlainVariable( Variable* var );
+  PlainVariable( Variable* var ) : fVar(var) {}
 
   virtual const std::string& GetName() const;
-  virtual ostrm_t& write( ostrm_t& os ) const;
+  virtual ostrm_t& write( ostrm_t& os, bool headerinfo = false ) const;
 
 private:
   Variable* fVar;
 };
 
-std::ostream& operator<<( std::ostream& os, const OutputElement& elem );
+class EventNumberVariable : public OutputElement {
+public:
+  EventNumberVariable( const int& nev ) : fNev(nev) {}
+
+  virtual const std::string& GetName() const { return fName; }
+  virtual ostrm_t& write( ostrm_t& os, bool headerinfo = false ) const;
+
+private:
+  static const std::string fName;
+  const int& fNev;
+};
 
 #endif

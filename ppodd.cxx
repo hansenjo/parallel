@@ -68,6 +68,10 @@ int Context::Init( const char* odef_file )
 {
   // Initialize current context
 
+  DeleteContainer(outvars);
+  DeleteContainer(variables);
+  delete [] evbuffer; evbuffer = 0;
+
   // Initialize detectors
   int err = 0;
   for( detlst_t::iterator it = detectors.begin(); it != detectors.end(); ++it ) {
@@ -83,10 +87,10 @@ int Context::Init( const char* odef_file )
     return 1;
 
   // Read output definitions & configure output
+  outvars.push_back( new EventNumberVariable(nev) );
+
   if( !odef_file || !*odef_file )
     return 2;
-
-  outvars.clear();
 
   ifstream inp(odef_file);
   if( !inp ) {
@@ -172,8 +176,6 @@ private:
   unsigned int fSeed;
 };
 
-static const char* field_sep = ", ";
-
 template <typename Pool_t, typename Context_t>
 class OutputThread : public Thread
 {
@@ -222,42 +224,31 @@ protected:
 	return;
 
       if( !fHeaderWritten ) {
-	outs << "Event";
-	if( !ctx->outvars.empty() )
-	  outs << field_sep;
-	for( voutp_t::const_iterator it = ctx->outvars.begin();
-	     it != ctx->outvars.end(); ) {
-	  OutputElement* var = *it;
-	  outs << var->GetName();
-	  ++it;
-	  if( it != ctx->outvars.end() )
-	    outs << field_sep;
-	}
-	outs << endl;
+	WriteHeader( outs, ctx );
 	fHeaderWritten = true;
       }
-
-      outs << ctx->nev;
-      if( !ctx->outvars.empty() )
-	outs << field_sep;
-      for( voutp_t::const_iterator it = ctx->outvars.begin();
-	   it != ctx->outvars.end(); ) {
-	OutputElement* var = *it;
-	var->write( outs );
-	++it;
-	if( it != ctx->outvars.end() )
-	  outs << field_sep;
-      }
-      outs << endl;
+      WriteEvent( outs, ctx );
 
       fPool.addFreeData(ctx);
     }
   }
+
 private:
   Pool_t& fPool;
   std::ofstream outp;
-  boost::iostreams::filtering_ostream outs;
+  ostrm_t outs;
   bool fHeaderWritten;
+
+  void WriteEvent( ostrm_t& os, Context_t* ctx, bool do_header = false )
+  {
+    for( voutp_t::const_iterator it = ctx->outvars.begin();
+	 it != ctx->outvars.end(); ++it ) {
+      OutputElement* var = *it;
+      var->write( outs, do_header );
+    }
+    outs << endl;
+  }
+  void WriteHeader( ostrm_t& os, Context_t* ctx ) { WriteEvent( os, ctx, true ); }
 };
 
 static string prgname;
