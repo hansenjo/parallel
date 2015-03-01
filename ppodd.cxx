@@ -241,14 +241,32 @@ private:
 
   void WriteEvent( ostrm_t& os, Context_t* ctx, bool do_header = false )
   {
+    // Write output file data (or header names)
     for( voutp_t::const_iterator it = ctx->outvars.begin();
 	 it != ctx->outvars.end(); ++it ) {
       OutputElement* var = *it;
       var->write( outs, do_header );
     }
-    outs << endl;
   }
-  void WriteHeader( ostrm_t& os, Context_t* ctx ) { WriteEvent( os, ctx, true ); }
+  void WriteHeader( ostrm_t& os, Context_t* ctx )
+  {
+    // Write output file header
+    // <N = number of variables> N*<variable type> N*<variable name C-string>
+    // where
+    //  <variable type> = TTTNNNNN,
+    // with
+    //  TTT   = type (0=int, 1=unsigned, 2=float/double, 3=C-string)
+    //  NNNNN = number of bytes
+    uint32_t nvars = ctx->outvars.size();
+    os.write( reinterpret_cast<const char*>(&nvars), sizeof(nvars) );
+    for( voutp_t::const_iterator it = ctx->outvars.begin();
+	 it != ctx->outvars.end(); ++it ) {
+      OutputElement* var = *it;
+      char type = var->GetType();
+      os.write( &type, sizeof(type) );
+    }
+    WriteEvent( os, ctx, true );
+  }
 };
 
 static string prgname;

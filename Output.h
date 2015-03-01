@@ -15,6 +15,7 @@ public:
   OutputElement() {}
 
   virtual const std::string& GetName() const = 0;
+  virtual char GetType() const = 0;
   virtual ostrm_t& write( ostrm_t& os, bool headerinfo = false ) const = 0;
 };
 
@@ -23,6 +24,7 @@ public:
   PlainVariable( Variable* var ) : fVar(var) {}
 
   virtual const std::string& GetName() const;
+  virtual char GetType() const { return (2<<5)+sizeof(double); }
   virtual ostrm_t& write( ostrm_t& os, bool headerinfo = false ) const;
 
 private:
@@ -34,6 +36,7 @@ public:
   EventNumberVariable( const int& nev ) : fNev(nev) {}
 
   virtual const std::string& GetName() const { return fName; }
+  virtual char GetType() const { return sizeof(int); }
   virtual ostrm_t& write( ostrm_t& os, bool headerinfo = false ) const;
 
 private:
