@@ -6,6 +6,7 @@
 #include "rawdata.h"
 #include "DataFile.h" // for evbuf_t
 #include <vector>
+#include <cassert>
 
 class Decoder {
 public:
@@ -37,14 +38,14 @@ int Decoder::GetNdata( int m ) const
 inline
 double Decoder::GetData( int m, int i ) const
 {
-  //  assert( event.module[m] );
+  assert( event.module[m] );
   return event.module[m]->data[i];
 }
 
 inline
 double* Decoder::GetDataBuf( int m ) const
 {
-  //  assert( event.module[m] );
+  assert( event.module[m] );
   return event.module[m]->data;
 }
 

@@ -2,9 +2,7 @@
 
 #include "Decoder.h"
 #include <iostream>
-#include <cstring>
-#include <stdint.h>
-#include <cassert>
+#include <cstring>  // for memset, memcpy
 
 using namespace std;
 
