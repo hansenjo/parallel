@@ -22,9 +22,10 @@ template< typename Container >
 inline void CopyContainer( const Container& from, Container& to )
 {
   // Deep-copy all elements of 'from' container of pointers to 'to' Container
+  // using each element's Clone() method
   to.clear();
   CopyObject<Container> copy(to);
-  for_each( from.begin(), from.end(), copy );
+  std::for_each( from.begin(), from.end(), copy );
 }
 
 //___________________________________________________________________________
@@ -38,7 +39,7 @@ template< typename Container >
 inline void DeleteContainer( Container& c )
 {
   // Delete all elements of given container of pointers
-  for_each( c.begin(), c.end(), DeleteObject() );
+  std::for_each( c.begin(), c.end(), DeleteObject() );
   c.clear();
 }
 
@@ -47,8 +48,8 @@ template< typename ContainerOfContainers >
 inline void DeleteContainerOfContainers( ContainerOfContainers& cc )
 {
   // Delete all elements of given container of containers of pointers
-  for_each( cc.begin(), cc.end(),
-	    DeleteContainer<typename ContainerOfContainers::value_type> );
+  std::for_each( cc.begin(), cc.end(),
+		 DeleteContainer<typename ContainerOfContainers::value_type> );
   cc.clear();
 }
 
