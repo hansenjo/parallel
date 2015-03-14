@@ -9,9 +9,7 @@ template< typename Container>
 class CopyObject {
 public:
   CopyObject( Container& target ) : m_target(target) {}
-
-  template< typename T >
-  void operator() ( const T* ptr )
+  void operator() ( const typename Container::value_type ptr )
   {
     m_target.push_back( ptr->Clone() );
   }
