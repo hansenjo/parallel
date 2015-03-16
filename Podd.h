@@ -13,7 +13,6 @@ typedef std::list<Variable*> varlst_t;
 typedef std::vector<Detector*> detlst_t;
 
 extern int debug;
-extern int compress_output;
 
 // Non-class specific functions
 struct VarDef_t {

@@ -14,6 +14,7 @@
 #include <climits>
 #include <unistd.h>
 #include <algorithm>  // for std::swap
+#include <set>
 
 // For output module
 #include <fstream>
@@ -27,11 +28,14 @@ using namespace ThreadUtil;
 using namespace boost::iostreams;
 
 // Definitions of items declared in Podd.h
-detlst_t gDets;
 
 int debug = 0;
-int compress_output = 0;
-int delay_us = 0;
+
+// Shared configuration data
+static string prgname;
+static int compress_output = 0;
+static int delay_us = 0;
+static bool order_events = false;
 
 typedef vector<OutputElement*> voutp_t;
 
@@ -48,6 +52,7 @@ struct Context {
   varlst_t  variables;   // Interface to analysis results
   voutp_t   outvars;     // Output definitions
   int       nev;         // Event number given to this thread
+  int       iseq;        // Event sequence number
   int       id;          // This thread's ID
   bool      is_init;     // Init() called successfully
 
@@ -268,8 +273,6 @@ private:
   }
 };
 
-static string prgname;
-
 static void default_names( string infile, string& odef, string& odat )
 {
   // If not given, set defaults for odef and output files
@@ -300,6 +303,7 @@ static void usage()
        << " [ -n nev_max ]\t\tset max number of events" << endl
        << " [ -t nthreads ]\t\tcreate at most nthreads (default = n_cpus)" << endl
        << " [ -y us ]\t\t\tAdd us microseconds average random delay per event" << endl
+       << " [ -s ]\t\t\tPreserve event order" << endl
        << " [ -m ]\t\t\tMark progress" << endl
        << " [ -z ]\t\t\tCompress output with gzip" << endl
        << " [ -h ]\t\t\tPrint this help message" << endl;
@@ -346,6 +350,9 @@ int main( int argc, char* const *argv )
     case 'm':
       mark = true;
       break;
+    case 's':
+      order_events = true;
+      break;
     case 'h':
     default:
       usage();
@@ -365,6 +372,7 @@ int main( int argc, char* const *argv )
   if( inp.Open() )
     return 2;
 
+  detlst_t gDets;
   // Set up analysis objects
   gDets.push_back( new DetectorTypeA("detA",1) );
   gDets.push_back( new DetectorTypeB("detB",2) );
@@ -427,6 +435,8 @@ int main( int argc, char* const *argv )
 
     swap( curCtx->evbuffer, inp.GetEvBuffer() );
     curCtx->nev = nev;
+    // Sequence number for event ordering. These must be consecutive
+    curCtx->iseq = nev;
     pool.Process( curCtx );
   }
   if( debug > 0 ) {
