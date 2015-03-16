@@ -154,12 +154,10 @@ private:
 template <typename Data_t>
 class PoolWorkerThread : public Thread {
 public:
-  PoolWorkerThread( WorkQueue<Data_t>& wq, WorkQueue<Data_t>& fq,
-		    WorkQueue<Data_t>& rq )
-    : fWorkQueue(wq), fFreeQueue(fq), fResultQueue(rq) {}
+  PoolWorkerThread( WorkQueue<Data_t>& wq, WorkQueue<Data_t>& rq )
+    : fWorkQueue(wq), fResultQueue(rq) {}
 protected:
   WorkQueue<Data_t>& fWorkQueue;
-  WorkQueue<Data_t>& fFreeQueue;
   WorkQueue<Data_t>& fResultQueue;
 };
 
@@ -168,35 +166,39 @@ template <template<typename> class Thread_t, typename Data_t>
 class ThreadPool {
 public:
   // Allocate a thread pool and set them to work trying to get tasks
-  ThreadPool( size_t n ) {
+  ThreadPool( size_t n, void* cfg = 0 ) : fOwner(true)
+  {
+    fResultQueue = new WorkQueue<Data_t>();
     for (size_t i=0; i<n; ++i) {
-      fThreads.push_back(new Thread_t<Data_t>(fWorkQueue,fFreeQueue,fResultQueue));
+      fThreads.push_back(new Thread_t<Data_t>(fWorkQueue,*fResultQueue,cfg));
+      fThreads.back()->start();
+    }
+  }
+  ThreadPool( size_t n, WorkQueue<Data_t>& rq, const void* cfg = 0 )
+    : fResultQueue(&rq), fOwner(false)
+  {
+    for (size_t i=0; i<n; ++i) {
+      fThreads.push_back(new Thread_t<Data_t>(fWorkQueue,*fResultQueue,cfg));
       fThreads.back()->start();
     }
   }
 
-  ~ThreadPool() { finish(); }
+  ~ThreadPool() { 
+    finish();
+    if( fOwner )
+      delete fResultQueue;
+  }
 
   // Queue up data for processing
   void Process( Data_t* data ) {
     fWorkQueue.add(data);
   }
 
-  void addFreeData( Data_t* data ) {
-    fFreeQueue.add(data);
-  }
-
-  Data_t* nextFree() {
-    return fFreeQueue.next();
-  }
-
-  void addResult( Data_t* data ) {
-    fResultQueue.add(data);
-  }
-
   Data_t* nextResult() {
-    return fResultQueue.next();
+    return fResultQueue->next();
   }
+
+  WorkQueue<Data_t>& GetWorkQueue() { return fWorkQueue; }
 
   // FIXME: Not sure we need this, or if it is a good idea
   Thread_t<Data_t>& GetThread( size_t i ) {
@@ -218,9 +220,9 @@ public:
 
 private:
   std::vector<Thread_t<Data_t>*> fThreads;
-  WorkQueue<Data_t> fWorkQueue;
-  WorkQueue<Data_t> fFreeQueue;
-  WorkQueue<Data_t> fResultQueue;
+  WorkQueue<Data_t>  fWorkQueue;
+  WorkQueue<Data_t>* fResultQueue;
+  bool fOwner;  // True if we allocated fResultQueue ourselves
 };
 
 } // end namespace ThreadPool

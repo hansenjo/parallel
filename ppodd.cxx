@@ -133,9 +133,9 @@ template <typename Context_t>
 class AnalysisThread : public PoolWorkerThread<Context_t>
 {
 public:
-  AnalysisThread( WorkQueue<Context_t>& wq, WorkQueue<Context_t>& fq,
-		  WorkQueue<Context_t>& rq )
-    : PoolWorkerThread<Context_t>(wq,fq,rq), fSeed(pthread_self())
+  AnalysisThread( WorkQueue<Context_t>& wq, WorkQueue<Context_t>& rq,
+		  const void* /* cfg */ )
+    : PoolWorkerThread<Context_t>(wq,rq), fSeed(pthread_self())
   {
     srand(fSeed);
   }
@@ -176,19 +176,18 @@ private:
   unsigned int fSeed;
 };
 
-template <typename Pool_t, typename Context_t>
-class OutputThread : public Thread
+template <typename Context_t>
+class OutputThread : public PoolWorkerThread<Context_t>
 {
 public:
-  OutputThread( Pool_t& pool, const char* odat_file )
-    : fPool(pool), fHeaderWritten(false)
+  OutputThread( WorkQueue<Context_t>& wq, WorkQueue<Context_t>& rq, const void* cfg )
+    : PoolWorkerThread<Context_t>(wq,rq), fHeaderWritten(false)
   {
+    const char* odat_file = static_cast<const char*>(cfg);
     if( !odat_file ||!*odat_file )
       return; // TODO: throw exception
 
     // Open output file and set up filter chain
-    outs.reset();
-    outp.close();
     outp.open( odat_file, ios::out|ios::trunc|ios::binary);
     if( !outp ) {
       cerr << "Error opening output data file " << odat_file << endl;
@@ -217,7 +216,7 @@ protected:
     if( !outp.is_open() )
       return;
 
-    while( Context_t* ctx = fPool.nextResult() ) {
+    while( Context_t* ctx = this->fWorkQueue.next() ) {
 
       if( !outp.good() || !outs.good() )
 	// TODO: handle errors properly
@@ -229,12 +228,10 @@ protected:
       }
       WriteEvent( outs, ctx );
 
-      fPool.addFreeData(ctx);
+      this->fResultQueue.add(ctx);
     }
   }
-
 private:
-  Pool_t& fPool;
   std::ofstream outp;
   ostrm_t outs;
   bool fHeaderWritten;
@@ -379,15 +376,12 @@ int main( int argc, char* const *argv )
   if( debug > 0 )
     cout << "Initializing " << nthreads << " analysis threads" << endl;
 
-  typedef ThreadPool<AnalysisThread,Context> thread_pool_t;
-
-  thread_pool_t pool(nthreads);
-
   vector<Context> ctx(nthreads);
+  WorkQueue<Context> freeQueue;
   for( vector<Context>::size_type i = 0; i < ctx.size(); ++i ) {
     // Deep copy of container objects
     CopyContainer( gDets, ctx[i].detectors );
-    pool.addFreeData( &ctx[i] );
+    freeQueue.add( &ctx[i] );
   }
 
   // Configure output
@@ -395,8 +389,11 @@ int main( int argc, char* const *argv )
       && odat_file.substr(odat_file.size()-3) != ".gz" )
     odat_file.append(".gz");
 
-  OutputThread<thread_pool_t,Context> output( pool, odat_file.c_str() );
-  output.start();
+  // Set up one output thread. Finished Contexts go back into freeQueue
+  ThreadPool<OutputThread,Context> output( 1, freeQueue, odat_file.c_str() );
+
+  // Set up nthreads analysis threads. Finished Contexts go into the output queue
+  ThreadPool<AnalysisThread,Context> pool( nthreads, output.GetWorkQueue() );
 
   unsigned long nev = 0;
 
@@ -409,7 +406,7 @@ int main( int argc, char* const *argv )
     if( debug > 1 )
       cout << "Event " << nev << endl;
 
-    Context* curCtx = pool.nextFree();
+    Context* curCtx = freeQueue.next();
     // Init if necessary
     //TODO: split up Init:
     // (1) Read database and all other related things, do before cloning
@@ -433,9 +430,7 @@ int main( int argc, char* const *argv )
 
   // Terminate worker threads
   pool.finish();
-  pool.addResult(0);
-  output.join();
-  output.Close();
+  output.finish();
 
   DeleteContainer( gDets );
 
