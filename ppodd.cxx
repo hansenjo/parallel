@@ -20,6 +20,8 @@
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
 
+#define OUTPUT_POOL
+
 using namespace std;
 using namespace ThreadUtil;
 using namespace boost::iostreams;
@@ -389,11 +391,17 @@ int main( int argc, char* const *argv )
       && odat_file.substr(odat_file.size()-3) != ".gz" )
     odat_file.append(".gz");
 
+#ifdef OUTPUT_POOL
   // Set up one output thread. Finished Contexts go back into freeQueue
   ThreadPool<OutputThread,Context> output( 1, freeQueue, odat_file.c_str() );
-
   // Set up nthreads analysis threads. Finished Contexts go into the output queue
   ThreadPool<AnalysisThread,Context> pool( nthreads, output.GetWorkQueue() );
+#else
+  // Single output thread
+  ThreadPool<AnalysisThread,Context> pool( nthreads );
+  OutputThread<Context> output( pool.GetResultQueue(), freeQueue, odat_file.c_str() );
+  output.start();
+#endif
 
   unsigned long nev = 0;
 
@@ -430,7 +438,15 @@ int main( int argc, char* const *argv )
 
   // Terminate worker threads
   pool.finish();
+#ifdef OUTPUT_POOL
+  // Terminate output threads
   output.finish();
+#else
+  // Terminate single output thread
+  pool.GetResultQueue().add(0);
+  output.join();
+  output.Close();
+#endif
 
   DeleteContainer( gDets );
 

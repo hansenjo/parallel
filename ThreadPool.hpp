@@ -183,7 +183,7 @@ public:
     }
   }
 
-  ~ThreadPool() { 
+  ~ThreadPool() {
     finish();
     if( fOwner )
       delete fResultQueue;
@@ -199,6 +199,7 @@ public:
   }
 
   WorkQueue<Data_t>& GetWorkQueue() { return fWorkQueue; }
+  WorkQueue<Data_t>& GetResultQueue() { return *fResultQueue; }
 
   // FIXME: Not sure we need this, or if it is a good idea
   Thread_t<Data_t>& GetThread( size_t i ) {
