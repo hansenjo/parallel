@@ -17,16 +17,14 @@ void Decoder::Clear()
 
 int Decoder::Load( evbuf_t* evbuffer )
 {
+  int status = Preload( evbuffer );
+  if( status )
+    return status;
+
   Clear();
 
-  if( !evbuffer )
-    return 1;
-  if( evbuffer[0] < 8 )
-    return 2;
-
-  memcpy( &event.header, evbuffer, sizeof(event.header) );
   char* evtp = ((char*)evbuffer)+sizeof(event.header);
-  int ndet = event.header.event_info;
+  int ndet = (event.header.event_info & 0xFFFF);
   for( int i = 0; i < ndet; ++i ) {
     ModuleData* m = (ModuleData*)evtp;
     if( !m )
@@ -38,4 +36,21 @@ int Decoder::Load( evbuf_t* evbuffer )
     evtp += m->header.module_length;
   }
   return 0;
+}
+
+int Decoder::Preload( evbuf_t* evbuffer )
+{
+  if( !evbuffer )
+    return 1;
+  if( evbuffer[0] < 8 )
+    return 2;
+
+  memcpy( &event.header, evbuffer, sizeof(event.header) );
+
+  return 0;
+}
+
+bool Decoder::IsSyncEvent() const
+{
+  return ((event.header.event_info & 0x10000) != 0);
 }

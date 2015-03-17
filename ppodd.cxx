@@ -5,10 +5,10 @@
 #include "Decoder.h"
 #include "DetectorTypeA.h"
 #include "DetectorTypeB.h"
-#include "Variable.h"
 #include "Output.h"
 #include "Util.h"
 #include "ThreadPool.hpp"
+#include "Context.h"
 
 #include <iostream>
 #include <climits>
@@ -21,7 +21,7 @@
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
 
-#define OUTPUT_POOL
+//#define OUTPUT_POOL
 
 using namespace std;
 using namespace ThreadUtil;
@@ -36,105 +36,7 @@ static string prgname;
 static int compress_output = 0;
 static int delay_us = 0;
 static bool order_events = false;
-
-typedef vector<OutputElement*> voutp_t;
-
-// Thread context
-struct Context {
-  Context();
-  ~Context();
-  int Init( const char* odef_file );
-
-  // Per-thread data
-  evbuf_t*  evbuffer;    // Event buffer read from file
-  Decoder   evdata;      // Decoded data
-  detlst_t  detectors;   // Detectors with private event-by-event data
-  varlst_t  variables;   // Interface to analysis results
-  voutp_t   outvars;     // Output definitions
-  int       nev;         // Event number given to this thread
-  int       iseq;        // Event sequence number
-  int       id;          // This thread's ID
-  bool      is_init;     // Init() called successfully
-
-  static const int INIT_EVSIZE = 1024;
-};
-
-Context::Context() : evbuffer(0), is_init(false)
-{
-}
-
-Context::~Context()
-{
-  DeleteContainer( outvars );
-  DeleteContainer( detectors );
-  DeleteContainer( variables );
-  delete [] evbuffer;
-}
-
-int Context::Init( const char* odef_file )
-{
-  // Initialize current context
-
-  DeleteContainer(outvars);
-  DeleteContainer(variables);
-  delete [] evbuffer; evbuffer = 0;
-
-  // Initialize detectors
-  int err = 0;
-  for( detlst_t::iterator it = detectors.begin(); it != detectors.end(); ++it ) {
-    int status;
-    Detector* det = *it;
-    det->SetVarList(variables);
-    if( (status = det->Init()) != 0 ) {
-      err = status;
-      cerr << "Error initializing detector " << det->GetName() << endl;
-    }
-  }
-  if( err )
-    return 1;
-
-  // Read output definitions & configure output
-  outvars.push_back( new EventNumberVariable(nev) );
-
-  if( !odef_file || !*odef_file )
-    return 2;
-
-  ifstream inp(odef_file);
-  if( !inp ) {
-    cerr << "Error opening output definition file " << odef_file << endl;
-    return 2;
-  }
-  string line;
-  while( getline(inp,line) ) {
-    // Wildcard match
-    string::size_type pos = line.find_first_not_of(" \t");
-    if( line.empty() || pos == string::npos || line[pos] == '#' )
-      continue;
-    line.erase(0,pos);
-    pos = line.find_first_of(" \t");
-    if( pos != string::npos )
-      line.erase(pos);
-    for( varlst_t::const_iterator it = variables.begin();
-	 it != variables.end(); ++it ) {
-      Variable* var = *it;
-      if( WildcardMatch(var->GetName(), line) )
-	outvars.push_back( new PlainVariable(var) );
-    }
-  }
-  inp.close();
-
-  if( outvars.empty() ) {
-    // Noting to do
-    cerr << "No output variables defined. Check " << odef_file << endl;
-    return 3;
-  }
-
-  evbuffer = new evbuf_t[INIT_EVSIZE];
-  evbuffer[0] = 0;
-
-  is_init = true;
-  return 0;
-}
+static bool allow_sync_events = false;
 
 template <typename Context_t>
 class AnalysisThread : public PoolWorkerThread<Context_t>
@@ -158,7 +60,7 @@ protected:
       if( status != 0 ) {
 	cerr << "Decoding error = " << status
 	     << " at event " << ctx->nev << endl;
-	return; //2
+	goto skip;
       }
       for( detlst_t::iterator it = ctx->detectors.begin();
 	   it != ctx->detectors.end(); ++it ) {
@@ -167,15 +69,16 @@ protected:
 
 	det->Clear();
 	if( (status = det->Decode(ctx->evdata)) != 0 )
-	  return;// status;
+	  goto skip;
 	if( (status = det->Analyze()) != 0 )
-	  return;// status;
+	  goto skip;
       }
 
       // If requested, add random delay
       if( delay_us > 0 )
 	usleep((unsigned int)((float)rand_r(&fSeed)/(float)RAND_MAX*2*delay_us));
 
+    skip: //TODO: add error status to context, let output skip bad results
       this->fResultQueue.add(ctx);
     }
   }
@@ -194,6 +97,7 @@ public:
     if( !odat_file ||!*odat_file )
       return; // TODO: throw exception
 
+    //TODO: make thread-safe
     // Open output file and set up filter chain
     outp.open( odat_file, ios::out|ios::trunc|ios::binary);
     if( !outp ) {
@@ -212,6 +116,7 @@ public:
 
   int Close()
   {
+    //TODO: Make thread-safe
     outs.reset();
     outp.close();
     return 0;
@@ -220,14 +125,12 @@ public:
 protected:
   virtual void run()
   {
-    if( !outp.is_open() )
-      return;
-
     while( Context_t* ctx = this->fWorkQueue.next() ) {
 
+      // TODO: make thread-safe
       if( !outp.good() || !outs.good() )
 	// TODO: handle errors properly
-	return;
+	goto skip;
 
       if( !fHeaderWritten ) {
 	WriteHeader( outs, ctx );
@@ -235,6 +138,8 @@ protected:
       }
       WriteEvent( outs, ctx );
 
+    skip:
+      ctx->UnmarkActive();
       this->fResultQueue.add(ctx);
     }
   }
@@ -301,9 +206,9 @@ static void usage()
        << " (default = input_file.odat)" << endl
        << " [ -d debug_level ]\tset debug level" << endl
        << " [ -n nev_max ]\t\tset max number of events" << endl
-       << " [ -t nthreads ]\t\tcreate at most nthreads (default = n_cpus)" << endl
-       << " [ -y us ]\t\t\tAdd us microseconds average random delay per event" << endl
-       << " [ -s ]\t\t\tPreserve event order" << endl
+       << " [ -t nthreads ]\tcreate at most nthreads (default = n_cpus)" << endl
+       << " [ -y us ]\t\tAdd us microseconds average random delay per event" << endl
+       << " [ -e (sync|strict) ]\tPreserve event order" << endl
        << " [ -m ]\t\t\tMark progress" << endl
        << " [ -z ]\t\t\tCompress output with gzip" << endl
        << " [ -h ]\t\t\tPrint this help message" << endl;
@@ -324,7 +229,7 @@ int main( int argc, char* const *argv )
   if( prgname.size() >= 2 && prgname.substr(0,2) == "./" )
     prgname.erase(0,2);
 
-  while( (opt = getopt(argc, argv, "c:d:n:o:t:y:zmh")) != -1 ) {
+  while( (opt = getopt(argc, argv, "c:d:n:o:t:y:e:zmh")) != -1 ) {
     switch (opt) {
     case 'c':
       odef_file = optarg;
@@ -344,14 +249,21 @@ int main( int argc, char* const *argv )
     case 'y':
       delay_us = atoi(optarg);
       break;
+    case 'e':
+      if( optarg && !strcmp(optarg,"strict") ) {
+	order_events = true;
+	allow_sync_events = true;
+      } else if( optarg && !strcmp(optarg,"sync") ) {
+	allow_sync_events = true;
+      } else {
+	usage();
+      }
+      break;
     case 'z':
       compress_output = 1;
       break;
     case 'm':
       mark = true;
-      break;
-    case 's':
-      order_events = true;
       break;
     case 'h':
     default:
@@ -367,6 +279,14 @@ int main( int argc, char* const *argv )
 
   default_names( input_file, odef_file, odat_file );
 
+  if( debug > 0 ) {
+    cout << "input_file = " << input_file << endl;
+    cout << "odef_file = " << odef_file << endl;
+    cout << "odat_file = " << odat_file << endl;
+    cout << "compress_output = " << compress_output << endl;
+    cout << "order_events = " << order_events << endl;
+    cout << "allow_sync_events = " << allow_sync_events << endl;
+  }
   // Open input
   DataFile inp(input_file.c_str());
   if( inp.Open() )
@@ -400,7 +320,7 @@ int main( int argc, char* const *argv )
     odat_file.append(".gz");
 
 #ifdef OUTPUT_POOL
-  // Set up one output thread. Finished Contexts go back into freeQueue
+  // Set up output thread(s). Finished Contexts go back into freeQueue
   ThreadPool<OutputThread,Context> output( 1, freeQueue, odat_file.c_str() );
   // Set up nthreads analysis threads. Finished Contexts go into the output queue
   ThreadPool<AnalysisThread,Context> pool( nthreads, output.GetWorkQueue() );
@@ -412,6 +332,9 @@ int main( int argc, char* const *argv )
 #endif
 
   unsigned long nev = 0;
+  bool doing_sync = false;
+  if( debug > 0 )
+    cout << "Starting event loop, nev_max = " << nev_max << endl;
 
   // Loop: Read one event and hand it off to an idle thread
   while( inp.ReadEvent() == 0 && nev < nev_max ) {
@@ -437,6 +360,15 @@ int main( int argc, char* const *argv )
     curCtx->nev = nev;
     // Sequence number for event ordering. These must be consecutive
     curCtx->iseq = nev;
+
+    // Synchronize the event stream at sync events (e.g. scalers).
+    // All events before sync events will be processed, followed by
+    // the sync event(s), then normal procssing resumes.
+    if( allow_sync_events && (curCtx->IsSyncEvent() || doing_sync) ) {
+      curCtx->WaitAllDone();
+      doing_sync = curCtx->IsSyncEvent();
+    }
+    curCtx->MarkActive();
     pool.Process( curCtx );
   }
   if( debug > 0 ) {

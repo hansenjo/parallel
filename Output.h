@@ -7,6 +7,7 @@
 #include "Podd.h"
 #include <boost/iostreams/filtering_stream.hpp>
 #include <string>
+#include <vector>
 
 typedef boost::iostreams::filtering_ostream ostrm_t;
 
@@ -43,5 +44,7 @@ private:
   static const std::string fName;
   const int& fNev;
 };
+
+typedef std::vector<OutputElement*> voutp_t;
 
 #endif
