@@ -27,7 +27,7 @@ using namespace std;
 using namespace ThreadUtil;
 using namespace boost::iostreams;
 
-// Definitions of items declared in Podd.h
+// Definitions of global items declared in Podd.h
 
 int debug = 0;
 
@@ -91,7 +91,7 @@ class OutputThread : public PoolWorkerThread<Context_t>
 {
 public:
   OutputThread( WorkQueue<Context_t>& wq, WorkQueue<Context_t>& rq, const void* cfg )
-    : PoolWorkerThread<Context_t>(wq,rq), fHeaderWritten(false)
+    : PoolWorkerThread<Context_t>(wq,rq), fHeaderWritten(false), fLastWritten(0)
   {
     const char* odat_file = static_cast<const char*>(cfg);
     if( !odat_file ||!*odat_file )
@@ -123,6 +123,8 @@ public:
   }
 
 protected:
+  typedef set<Context_t*,typename Context_t::SeqLess> ContextSet_t;
+
   virtual void run()
   {
     while( Context_t* ctx = this->fWorkQueue.next() ) {
@@ -136,17 +138,43 @@ protected:
 	WriteHeader( outs, ctx );
 	fHeaderWritten = true;
       }
-      WriteEvent( outs, ctx );
-
-    skip:
-      ctx->UnmarkActive();
-      this->fResultQueue.add(ctx);
+      if( order_events ) {
+	// Wait for next event in sequence before writing
+	if( ctx->iseq == fLastWritten+1 ) {
+	  WriteEvent( outs, ctx );
+	  ++fLastWritten;
+	  ctx->UnmarkActive();
+	  this->fResultQueue.add(ctx);
+	  // Check if some or all of the buffer can be written now, too
+	  for( typename ContextSet_t::iterator it = fBuffer.begin(), jt = it;
+	       it != fBuffer.end() && (*it)->iseq == fLastWritten+1; it = jt ) {
+	    ++jt;
+	    WriteEvent( outs, *it );
+	    ++fLastWritten;
+	    (*it)->UnmarkActive();
+	    this->fResultQueue.add(*it);
+	    fBuffer.erase(it);
+	  }
+	} else {
+	  // Buffer out-of-order events, sorted by iseq
+	  fBuffer.insert(ctx);
+	  //TODO: error check
+	  //TODO: deal with skipped events!
+	}
+      } else {
+	WriteEvent( outs, ctx );
+      skip:
+	ctx->UnmarkActive();
+	this->fResultQueue.add(ctx);
+      }
     }
   }
 private:
   std::ofstream outp;
   ostrm_t outs;
   bool fHeaderWritten;
+  int  fLastWritten;
+  ContextSet_t fBuffer;
 
   void WriteEvent( ostrm_t& os, Context_t* ctx, bool do_header = false )
   {
@@ -156,6 +184,8 @@ private:
       OutputElement* var = *it;
       var->write( outs, do_header );
     }
+    if( debug > 0 && !do_header )
+      cout << "Wrote nev = " << ctx->nev << endl;
   }
   void WriteHeader( ostrm_t& os, Context_t* ctx )
   {

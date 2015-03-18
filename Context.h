@@ -7,6 +7,8 @@
 #include "Decoder.h"
 #include "Output.h"
 #include "pthread.h"
+#include <functional>
+#include <cassert>
 
 class Context {
 public:
@@ -33,6 +35,15 @@ public:
   bool      is_active;
 
   static const int INIT_EVSIZE = 1024;
+
+  struct SeqLess : public std::binary_function<Context*, Context*, bool>
+  {
+    bool operator() ( const Context* a, const Context* b ) const
+    {
+      assert( a && b );
+      return (a->iseq < b->iseq);
+    }
+  };
 
 private:
   static pthread_mutex_t fgMutex;
