@@ -166,7 +166,7 @@ template <template<typename> class Thread_t, typename Data_t>
 class ThreadPool {
 public:
   // Allocate a thread pool and set them to work trying to get tasks
-  ThreadPool( size_t n, void* cfg = 0 ) : fOwner(true)
+  ThreadPool( size_t n, const void* cfg = 0 ) : fOwner(true)
   {
     fResultQueue = new WorkQueue<Data_t>();
     for (size_t i=0; i<n; ++i) {
