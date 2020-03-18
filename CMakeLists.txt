@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.5)
+cmake_minimum_required (VERSION 3.8)   # Need >= 3.8 for C++17 support 
 
 project(ppodd CXX)
 
@@ -20,7 +20,7 @@ target_compile_options(${PPODD}
 )
 set_target_properties(${PPODD}
   PROPERTIES
-    CXX_STANDARD 11
+    CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     )
@@ -35,7 +35,7 @@ target_compile_options(${GENE}
 )
 set_target_properties(${GENE}
   PROPERTIES
-    CXX_STANDARD 11
+    CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     )
