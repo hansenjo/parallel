@@ -56,7 +56,7 @@ inline void DeleteContainerOfContainers( ContainerOfContainers& cc )
 //___________________________________________________________________________
 // Utility functions in Util.cxx
 
-int GetCPUcount();
+unsigned int GetThreadCount();
 bool WildcardMatch( const std::string& candidate, const std::string& expr );
 
 #endif

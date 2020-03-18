@@ -15,6 +15,8 @@
 #include <unistd.h>
 #include <algorithm>  // for std::swap
 #include <set>
+#include <ctime>
+#include <cstdlib>
 
 // For output module
 #include <fstream>
@@ -252,7 +254,7 @@ int main( int argc, char* const *argv )
   int opt;
   bool mark = false;
   string input_file, odef_file, odat_file;
-  int ncpu = GetCPUcount();
+  int ncpu = GetThreadCount();
   int nthreads = ncpu-1;
 
   prgname = argv[0];
