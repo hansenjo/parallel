@@ -9,7 +9,7 @@ CXXFLAGSST = -g -O -Wall # -DNDEBUG
 CXXFLAGS = $(CXXFLAGSST) -pthread
 CXXFLAGS += $(INCLUDES) $(DEFINES)
 #LIBS	= -Wl,-Bstatic -lboost_date_time -lboost_program_options -Wl,-Bdynamic
-LIBS    = -lboost_iostreams
+LIBS    = -lboost_iostreams-mt
 
 PROGRAM = ppodd
 GENERATOR = generate
@@ -28,7 +28,7 @@ $(GENERATOR).o:	$(GENERATOR).cxx Makefile
 		$(CXX) -c $(CXXFLAGSST) -o $@ $<
 
 clean:
-		rm -f $(PROGRAM) *.o *~
+		rm -f $(PROGRAM) $(GENERATOR) *.o *~
 
 realclean:	clean
 		rm -f *.d
