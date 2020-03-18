@@ -27,6 +27,7 @@ set_target_properties(${PPODD}
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
+set(Boost_USE_MULTITHREADED TRUE)
 find_package(Boost REQUIRED COMPONENTS iostreams)
 target_link_libraries(${PPODD} Threads::Threads Boost::iostreams)
 
