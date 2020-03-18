@@ -46,7 +46,7 @@ class AnalysisThread : public PoolWorkerThread<Context_t>
 public:
   AnalysisThread( WorkQueue<Context_t>& wq, WorkQueue<Context_t>& rq,
 		  const void* /* cfg */ )
-    : PoolWorkerThread<Context_t>(wq,rq), fSeed(pthread_self())
+    : PoolWorkerThread<Context_t>(wq,rq), fSeed(time(0))
   {
     srand(fSeed);
   }
