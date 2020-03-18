@@ -14,6 +14,7 @@ typedef boost::iostreams::filtering_ostream ostrm_t;
 class OutputElement {
 public:
   OutputElement() {}
+  virtual ~OutputElement() {}
 
   virtual const std::string& GetName() const = 0;
   virtual char GetType() const = 0;
