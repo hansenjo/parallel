@@ -360,7 +360,6 @@ int main( int argc, char* const *argv )
   // Single output thread
   ThreadPool<AnalysisThread,Context> pool( nthreads );
   OutputThread<Context> output( pool.GetResultQueue(), freeQueue, odat_file.c_str() );
-  output.start();
 #endif
 
   unsigned long nev = 0;
