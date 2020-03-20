@@ -1,4 +1,4 @@
-CXXFLAGS = -g -O -Wall -Wextra -lpthread -I..
+CXXFLAGS = -std=c++17 -g -O -Wall -Wextra  -I.. -pthread
 
 all:	ThreadTest
 
