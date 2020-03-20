@@ -7,56 +7,64 @@
 //     thread-specific data that are controlled by the controller process
 //     (manager). Example:
 //
-//     struct WorkData_t {
+//     struct Data_t {
 //        int input;
 //        float result;
 //     };
 //
-// (2) Write a worker thread implementation. This is a class that inherits
-//     from ThreadUtil::Thread<Data_t> and implements a run() method. Example:
+// (2) Allocate at least as many work data objects as there will be worker
+//     threads. Initialize as necessary. Example:
+//
+//     Data_t workData[16];
+//
+// (3) Add these work data objects to a "free queue". Example:
+//
+//     ThreadUtil::WorkQueue<Data_t> freeQueue;
+//     for( int i=0; i<16; ++i )
+//        freeQueue.add( &workData[i] );
+//
+// (4) Write a worker thread implementation. This is a class that inherits
+//     from ThreadUtil::PoolWorkerThread<Data_t> and implements a run() method.
+//     The run()method should take Data_t items from the fWorkQueue, process
+//     them, and put the processed Data_t items into fResultQueue.
+//     Example:
 //
 //     #include "ThreadPool.hpp"
 //
 //     template< typename T>
-//     class WorkerThread : public ThreadUtil::Thread<T>
+//     class WorkerThread : public ThreadUtil::PoolWorkerThread<T>
 //     {
 //     public:
 //        WorkerThread( WorkQueue<T>& wq, WorkQueue<T>& fq)
-//        : ThreadUtil::Thread<T>(wq,fq) {}
+//        : ThreadUtil::PoolWorkerThread<T>(wq,fq) {}
 //     ....
 //     protected:
 //        virtual void run()
 //        {
 //           while( T* data = this->fWorkQueue.next() ) {
-//           // do something with data (which will a pointer to a WorkData_t)
-//           // IMPORTANT: once processed, put the data back into the free queue!
-//           this->fFreeQueue.add(data)
+//           // do something with data (which will a pointer to a Data_t)
+//           // once processed, put the data into the results queue
+//           this->fResultQueue.add(data)
 //        }
 //     ....
 //     };
 //
-// (3) Instantiate the thread pool. In the current implementation, the number of
+// (5) Instantiate the thread pool. In the current implementation, the number of
 //     threads is fixed. Example:
+// (5a)
+//     ThreadUtil::ThreadPool<WorkerThread,Data_t> pool(8);
 //
-//     ThreadUtil::ThreadPool<WorkerThread,WorkData_t> pool(8);
+//     or using the freeQueue as the result queue:
+// (5b)
+//     ThreadUtil::ThreadPool<WorkerThread,Data_t> pool(8, freeQueue);
 //
-// (4) Allocate at least as many work data objects as there will be worker
-//     threads. Initialize as necessary. Example:
-//
-//     WorkData_t workData[16];
-//
-// (5) Add these work data objects to the free queue of the pool. Example:
-//
-//     for( int i=0; i<16; ++i )
-//        pool.addFreeData( &workData[i] );
-//
-// (6) To process data, retrieve a free work data object, put input data into it,
-//     and pass it to the pool for processing. Example:
+// (6) To process data, retrieve a free data object, put input data into it,
+//     and pass it to the pool for processing. Example, using (5b) above:
 //
 //     for( int i=0; i<10000; ++i ) {
-//        WorkData_t* data = pool.nextFree();
-//        data->input = i;
-//        pool.Process(data);
+//        Data_t* d = freeQueue.next();
+//        d->input = i;
+//        pool.Process(d); // automatically refills freeQueue
 //     }
 //
 //     Results should be processed within the WorkerThread objects.

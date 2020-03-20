@@ -23,7 +23,7 @@ set_target_properties(${PPODD}
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
-    )
+)
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
@@ -39,6 +39,9 @@ set_target_properties(${GENE}
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
-    )
+)
 
 install(TARGETS ${PPODD} ${GENE} DESTINATION bin)
+
+add_subdirectory(Examples)
+
