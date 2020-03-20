@@ -82,7 +82,6 @@ int main( int /* argc */, char** /* argv */ )
   // the pool's result queue, prints them, and puts them back into the
   // free queue
   OutputThread<thread_pool_t,thread_data_t> outp(pool, freeQueue);
-  outp.start();
 
   // Add work
   for( size_t i = 0; i < 1000; ++i ) {

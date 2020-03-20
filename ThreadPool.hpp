@@ -127,18 +127,14 @@ private:
 
 class Thread {
 public:
-  Thread() : state(kNone), handle(0) {}
-  virtual ~Thread() { assert(state == kJoined); }
-
-  void start() {
-    assert(state == kNone);
+  Thread() : state(kNone), handle(0) {
     if (pthread_create(&handle, 0, threadProc, this))
       abort();
     state = kStarted;
   }
+  virtual ~Thread() { assert(state == kJoined); }
 
   void join() {
-    assert(state == kStarted);
     pthread_join(handle, 0);
     state = kJoined;
   }
@@ -179,7 +175,6 @@ public:
     fResultQueue = new WorkQueue<Data_t>();
     for (size_t i=0; i<n; ++i) {
       fThreads.push_back(new Thread_t<Data_t>(fWorkQueue,*fResultQueue,cfg));
-      fThreads.back()->start();
     }
   }
   ThreadPool( size_t n, WorkQueue<Data_t>& rq, const void* cfg = 0 )
@@ -187,7 +182,6 @@ public:
   {
     for (size_t i=0; i<n; ++i) {
       fThreads.push_back(new Thread_t<Data_t>(fWorkQueue,*fResultQueue,cfg));
-      fThreads.back()->start();
     }
   }
 
