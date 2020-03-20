@@ -75,7 +75,9 @@
 
 #include <queue>
 #include <vector>
-#include <pthread.h>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
 #include <cstdlib>
 #include <cassert>
 
@@ -85,57 +87,41 @@ namespace ThreadUtil {
 template <typename Data_t>
 class WorkQueue {
 public:
-  WorkQueue()
-  {
-    pthread_mutex_init(&fMutex,0);
-    pthread_cond_init(&fWaitCond, 0);
-  }
-
-  ~WorkQueue() {
-    pthread_mutex_destroy(&fMutex);
-    pthread_cond_destroy(&fWaitCond);
-  }
-
   Data_t* next() {
-    pthread_mutex_lock(&fMutex);
+    std::unique_lock<std::mutex> ulock(fMutex);
     // Wait for new work
     while (fQueue.empty())
-      pthread_cond_wait(&fWaitCond, &fMutex);
+      fWaitCond.wait(ulock);
 
     // Take work data from the front of the queue
     Data_t* data = fQueue.front();
     fQueue.pop();
-
-    pthread_mutex_unlock(&fMutex);
     return data;
   }
 
   void add( Data_t* data ) {
-    pthread_mutex_lock(&fMutex);
-    // Push thread work data onto the queue
-    fQueue.push(data);
+    {
+      std::lock_guard<std::mutex> lock(fMutex);
+      // Push thread work data onto the queue
+      fQueue.push( data );
+    }
     // signal there's new work
-    pthread_cond_signal(&fWaitCond);
-    pthread_mutex_unlock(&fMutex);
+    fWaitCond.notify_one();
   }
 
 private:
   std::queue<Data_t*> fQueue;
-  pthread_mutex_t fMutex;
-  pthread_cond_t  fWaitCond;
+  std::mutex fMutex;
+  std::condition_variable fWaitCond;
 };
 
 class Thread {
 public:
-  Thread() : state(kNone), handle(0) {
-    if (pthread_create(&handle, 0, threadProc, this))
-      abort();
-    state = kStarted;
-  }
+  Thread() : state(kStarted), fThread(threadProc, this) {}
   virtual ~Thread() { assert(state == kJoined); }
 
   void join() {
-    pthread_join(handle, 0);
+    fThread.join();
     state = kJoined;
   }
 
@@ -143,16 +129,11 @@ protected:
   virtual void run() = 0;
 
 private:
-  static void* threadProc( void* param )
-  {
-    Thread* thread = reinterpret_cast<Thread*>(param);
-    thread->run();
-    return 0;
-  }
+  static void threadProc( Thread* me ) { me->run(); }
 
   enum EState { kNone, kStarted, kJoined };
   EState state;
-  pthread_t handle;
+  std::thread fThread;
 };
 
 template <typename Data_t>
@@ -170,7 +151,7 @@ template <template<typename> class Thread_t, typename Data_t>
 class ThreadPool {
 public:
   // Allocate a thread pool and set them to work trying to get tasks
-  ThreadPool( size_t n, const void* cfg = 0 ) : fOwner(true)
+  explicit ThreadPool( size_t n, const void* cfg = 0 ) : fOwner(true)
   {
     fResultQueue = new WorkQueue<Data_t>();
     for (size_t i=0; i<n; ++i) {
@@ -202,13 +183,6 @@ public:
 
   WorkQueue<Data_t>& GetWorkQueue() { return fWorkQueue; }
   WorkQueue<Data_t>& GetResultQueue() { return *fResultQueue; }
-
-  // FIXME: Not sure we need this, or if it is a good idea
-  Thread_t<Data_t>& GetThread( size_t i ) {
-    if( i >= fThreads.size() )
-      return 0;
-    return fThreads[i];
-  }
 
   // Wait for the threads to finish, then delete them
   void finish() {
