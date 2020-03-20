@@ -9,8 +9,7 @@ using namespace std;
 using namespace ThreadUtil;
 
 // stdout is a shared resource, so protect it with a mutex
-//static pthread_mutex_t console_mutex = PTHREAD_MUTEX_INITIALIZER;
-
+mutex console_mutex;
 
 // Thanks to the reusable thread class implementing threads is
 // simple and free of pthread api usage.
@@ -28,12 +27,14 @@ protected:
   virtual void run()
   {
     while( Data_t* data = this->fWorkQueue.next() ) {
-//      pthread_mutex_lock(&console_mutex);
-//      cout << "Thread " << pthread_self()
-//           << ", data = " << setw(5) << *data << endl;
-//      pthread_mutex_unlock(&console_mutex);
+#ifdef DEBUG
+      console_mutex.lock();
+      cout << "Thread " << pthread_self()
+           << ", data = " << setw(5) << *data << endl << flush;
+      console_mutex.unlock();
+#endif
       usleep((unsigned int)((float)rand_r(&fSeed)/(float)RAND_MAX*20000));
-      *data *= -1;
+      *data *= -10;
       this->fResultQueue.add(data);
     }
   }
@@ -52,9 +53,15 @@ protected:
   virtual void run()
   {
     while( Data_t* data = fPool.nextResult() ) {
-      cout << "data = " << setw(5) << *data << endl;
+      console_mutex.lock();
+      cout << "data = " << setw(5) << *data << endl << flush;
+      console_mutex.unlock();
+      assert(*data <= 0);
       fFreeQueue.add(data);
     }
+    console_mutex.lock();
+    cout << "Output thread terminating" << endl;
+    console_mutex.unlock();
   }
 private:
   Pool_t& fPool;
@@ -84,7 +91,7 @@ int main( int /* argc */, char** /* argv */ )
   OutputThread<thread_pool_t,thread_data_t> outp(pool, freeQueue);
 
   // Add work
-  for( size_t i = 0; i < 1000; ++i ) {
+  for( size_t i = 0; i < 10000; ++i ) {
     thread_data_t* datap = freeQueue.next();
     *datap = i;
     pool.Process(datap);
