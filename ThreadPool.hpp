@@ -80,6 +80,7 @@
 #include <condition_variable>
 #include <cstdlib>
 #include <cassert>
+#include <memory>
 
 namespace ThreadUtil {
 
@@ -87,6 +88,10 @@ namespace ThreadUtil {
 template <typename Data_t>
 class WorkQueue {
 public:
+  WorkQueue() = default;
+  WorkQueue(const WorkQueue&) = delete;
+  WorkQueue(WorkQueue&&) = delete;
+
   Data_t* next() {
     std::unique_lock<std::mutex> ulock(fMutex);
     // Wait for new work
@@ -117,23 +122,28 @@ private:
 
 class Thread {
 public:
-  Thread() : state(kStarted), fThread(threadProc, this) {}
-  virtual ~Thread() { assert(state == kJoined); }
+  Thread() : fState(kNone) {}
+  Thread(const Thread&) = delete;
+  Thread(Thread&& rhs)  = delete; // Moving this object does not work properly
+  virtual ~Thread() { assert( fState == kJoined ); }
 
   void join() {
-    fThread.join();
-    state = kJoined;
+    fThread->join();
+    fState = kJoined;
+  }
+  void start() {
+    fThread = std::make_unique<std::thread>(threadProc, this);
+    fState = kStarted;
   }
 
 protected:
   virtual void run() = 0;
+  enum EState { kNone, kStarted, kJoined };
+  EState fState;
 
 private:
   static void threadProc( Thread* me ) { me->run(); }
-
-  enum EState { kNone, kStarted, kJoined };
-  EState state;
-  std::thread fThread;
+  std::unique_ptr<std::thread> fThread;
 };
 
 template <typename Data_t>
@@ -150,35 +160,32 @@ protected:
 template <template<typename> class Thread_t, typename Data_t>
 class ThreadPool {
 public:
-  // Allocate a thread pool and set them to work trying to get tasks
-  explicit ThreadPool( size_t n, const void* cfg = 0 ) : fOwner(true)
+  // Normal constructor, using internal ResultQueue
+  explicit ThreadPool( size_t n, const void* cfg = nullptr )
+    : fResultQueue(std::make_shared<WorkQueue<Data_t>>())
   {
-    fResultQueue = new WorkQueue<Data_t>();
-    for (size_t i=0; i<n; ++i) {
-      fThreads.push_back(new Thread_t<Data_t>(fWorkQueue,*fResultQueue,cfg));
-    }
+    AddThreads(n,cfg);
   }
-  ThreadPool( size_t n, WorkQueue<Data_t>& rq, const void* cfg = 0 )
-    : fResultQueue(&rq), fOwner(false)
+  // Constructor with shared_ptr of external ResultQueue
+  ThreadPool( size_t n, std::shared_ptr<WorkQueue<Data_t>> rq,
+              const void* cfg = nullptr ) : fResultQueue(rq)
   {
-    for (size_t i=0; i<n; ++i) {
-      fThreads.push_back(new Thread_t<Data_t>(fWorkQueue,*fResultQueue,cfg));
-    }
+    AddThreads(n,cfg);
+  }
+  // Constructor with reference to external ResultQueue
+  ThreadPool( size_t n, WorkQueue<Data_t>& rq, const void* cfg = nullptr )
+    : fResultQueue(&rq)
+  {
+    AddThreads(n,cfg);
   }
 
   ~ThreadPool() {
     finish();
-    if( fOwner )
-      delete fResultQueue;
   }
 
   // Queue up data for processing
   void Process( Data_t* data ) {
     fWorkQueue.add(data);
-  }
-
-  Data_t* nextResult() {
-    return fResultQueue->next();
   }
 
   WorkQueue<Data_t>& GetWorkQueue() { return fWorkQueue; }
@@ -190,16 +197,24 @@ public:
       fWorkQueue.add(0);
     for (size_t i=0,e=fThreads.size(); i<e; ++i) {
       fThreads[i]->join();
-      delete fThreads[i];
     }
     fThreads.clear();
   }
 
 private:
-  std::vector<Thread_t<Data_t>*> fThreads;
+  using thrd_t = Thread_t<Data_t>;
+  std::vector<std::unique_ptr<thrd_t>> fThreads;
   WorkQueue<Data_t>  fWorkQueue;
-  WorkQueue<Data_t>* fResultQueue;
-  bool fOwner;  // True if we allocated fResultQueue ourselves
+  std::shared_ptr<WorkQueue<Data_t>> fResultQueue;
+
+  void AddThreads(size_t n, const void* cfg) {
+    fThreads.clear();
+    fThreads.reserve(n);
+    for (size_t i=0; i<n; ++i) {
+      fThreads.push_back(std::make_unique<thrd_t>( fWorkQueue, *fResultQueue, cfg));
+      fThreads.back()->start();
+    }
+  }
 };
 
 } // end namespace ThreadPool
