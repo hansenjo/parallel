@@ -33,7 +33,6 @@ int DetectorTypeB::Analyze()
 {
   // This detector type performs a linear fit to the data
 
-  typedef vector<double> vec_t;
   if( data.size() % 2 != 0 ) {
     cerr << GetName() << ": Data error, size = " << data.size()
 	 << ", expected even number" << endl;

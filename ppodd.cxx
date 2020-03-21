@@ -2,7 +2,7 @@
 
 #include "Podd.h"
 #include "DataFile.h"
-#include "Decoder.h"
+//#include "Decoder.h"
 #include "DetectorTypeA.h"
 #include "DetectorTypeB.h"
 #include "Output.h"
@@ -17,10 +17,11 @@
 #include <set>
 #include <ctime>
 #include <cstdlib>
+#include <memory>
 
 // For output module
 #include <fstream>
-#include <boost/iostreams/filtering_stream.hpp>
+//#include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
 
 //#define OUTPUT_POOL
@@ -46,7 +47,7 @@ class AnalysisThread : public PoolWorkerThread<Context_t>
 public:
   AnalysisThread( WorkQueue<Context_t>& wq, WorkQueue<Context_t>& rq,
 		  const void* /* cfg */ )
-    : PoolWorkerThread<Context_t>(wq,rq), fSeed(time(0))
+    : PoolWorkerThread<Context_t>(wq,rq), fSeed(time(nullptr))
   {
     srand(fSeed);
   }
@@ -64,15 +65,14 @@ protected:
 	     << " at event " << ctx->nev << endl;
 	goto skip;
       }
-      for( detlst_t::iterator it = ctx->detectors.begin();
+      for( auto it = ctx->detectors.begin();
 	   it != ctx->detectors.end(); ++it ) {
-	int status;
 	Detector* det = *it;
 
 	det->Clear();
-	if( (status = det->Decode(ctx->evdata)) != 0 )
+	if( det->Decode(ctx->evdata) != 0 )
 	  goto skip;
-	if( (status = det->Analyze()) != 0 )
+	if( det->Analyze() != 0 )
 	  goto skip;
       }
 
@@ -125,7 +125,7 @@ public:
   }
 
 protected:
-  typedef set<Context_t*,typename Context_t::SeqLess> ContextSet_t;
+  using ContextSet_t = set<Context_t*,typename Context_t::SeqLess>;
 
   virtual void run()
   {
@@ -148,14 +148,14 @@ protected:
 	  ctx->UnmarkActive();
 	  this->fResultQueue.add(ctx);
 	  // Check if some or all of the buffer can be written now, too
-	  for( typename ContextSet_t::iterator it = fBuffer.begin(), jt = it;
-	       it != fBuffer.end() && (*it)->iseq == fLastWritten+1; it = jt ) {
+	  for( auto it = fBuffer.begin(), jt = it;
+               it != fBuffer.end() && (*it)->iseq == fLastWritten + 1; it = jt ) {
 	    ++jt;
 	    WriteEvent( outs, *it );
 	    ++fLastWritten;
 	    (*it)->UnmarkActive();
 	    this->fResultQueue.add(*it);
-	    fBuffer.erase(it);
+	    fBuffer.erase( it);
 	  }
 	} else {
 	  // Buffer out-of-order events, sorted by iseq
@@ -181,7 +181,7 @@ private:
   void WriteEvent( ostrm_t& os, Context_t* ctx, bool do_header = false )
   {
     // Write output file data (or header names)
-    for( voutp_t::const_iterator it = ctx->outvars.begin();
+    for( auto it = ctx->outvars.begin();
 	 it != ctx->outvars.end(); ++it ) {
       OutputElement* var = *it;
       var->write( outs, do_header );
@@ -200,7 +200,7 @@ private:
     //  NNNNN = number of bytes
     uint32_t nvars = ctx->outvars.size();
     os.write( reinterpret_cast<const char*>(&nvars), sizeof(nvars) );
-    for( voutp_t::const_iterator it = ctx->outvars.begin();
+    for( auto it = ctx->outvars.begin();
 	 it != ctx->outvars.end(); ++it ) {
       OutputElement* var = *it;
       char type = var->GetType();
@@ -254,8 +254,7 @@ int main( int argc, char* const *argv )
   int opt;
   bool mark = false;
   string input_file, odef_file, odat_file;
-  int ncpu = GetThreadCount();
-  int nthreads = ncpu-1;
+  int nthreads = 0;
 
   prgname = argv[0];
   if( prgname.size() >= 2 && prgname.substr(0,2) == "./" )
@@ -333,17 +332,19 @@ int main( int argc, char* const *argv )
   //   PrintVarList(gVars);
 
   // Set up thread contexts. Copy analysis objects.
-  if( nthreads <= 0 || nthreads >= ncpu )
+  unsigned int ncpu = GetThreadCount();
+  if( nthreads <= 0 || nthreads > (int)ncpu-1 )
     nthreads = (ncpu > 1) ? ncpu-1 : 1;
   if( debug > 0 )
     cout << "Initializing " << nthreads << " analysis threads" << endl;
 
-  vector<Context> ctx(nthreads);
-  WorkQueue<Context> freeQueue;
-  for( vector<Context>::size_type i = 0; i < ctx.size(); ++i ) {
+  vector<Context> contexts(nthreads);
+  using Queue_t = WorkQueue<Context>;
+  shared_ptr<Queue_t> freeQueue = make_shared<Queue_t>();
+  for(auto & ctx : contexts) {
     // Deep copy of container objects
-    CopyContainer( gDets, ctx[i].detectors );
-    freeQueue.add( &ctx[i] );
+    CopyContainer( gDets, ctx.detectors );
+    freeQueue->add( &ctx );
   }
 
   // Configure output
@@ -359,7 +360,7 @@ int main( int argc, char* const *argv )
 #else
   // Single output thread
   ThreadPool<AnalysisThread,Context> pool( nthreads );
-  OutputThread<Context> output( pool.GetResultQueue(), freeQueue, odat_file.c_str() );
+  OutputThread<Context> output( pool.GetResultQueue(), *freeQueue, odat_file.c_str() );
 #endif
 
   unsigned long nev = 0;
@@ -376,7 +377,7 @@ int main( int argc, char* const *argv )
     if( debug > 1 )
       cout << "Event " << nev << endl;
 
-    Context* curCtx = freeQueue.next();
+    Context* curCtx = freeQueue->next();
     // Init if necessary
     //TODO: split up Init:
     // (1) Read database and all other related things, do before cloning
@@ -385,7 +386,7 @@ int main( int argc, char* const *argv )
     if( !curCtx->is_init ) {
       if( curCtx->Init(odef_file.c_str()) != 0 )
 	break;
-    };
+    }
 
     swap( curCtx->evbuffer, inp.GetEvBuffer() );
     curCtx->nev = nev;
@@ -394,7 +395,7 @@ int main( int argc, char* const *argv )
 
     // Synchronize the event stream at sync events (e.g. scalers).
     // All events before sync events will be processed, followed by
-    // the sync event(s), then normal procssing resumes.
+    // the sync event(s), then normal processing resumes.
     if( allow_sync_events && (curCtx->IsSyncEvent() || doing_sync) ) {
       curCtx->WaitAllDone();
       doing_sync = curCtx->IsSyncEvent();
@@ -416,7 +417,7 @@ int main( int argc, char* const *argv )
   output.finish();
 #else
   // Terminate single output thread
-  pool.GetResultQueue().add(0);
+  pool.GetResultQueue().add(nullptr);
   output.join();
   output.Close();
 #endif

@@ -46,13 +46,13 @@ template <typename Pool_t, typename Data_t>
 class OutputThread : public Thread
 {
 public:
-  explicit OutputThread( Pool_t& pool, WorkQueue<Data_t>& freeQueue )
-          : fPool(pool), fFreeQueue(freeQueue) {}
+  OutputThread( Pool_t& pool, WorkQueue<Data_t>& freeQueue )
+    : fPool(pool), fFreeQueue(freeQueue) {}
 
 protected:
   virtual void run()
   {
-    while( Data_t* data = fPool.nextResult() ) {
+    while( Data_t* data = fPool.GetResultQueue().next() ) {
       console_mutex.lock();
       cout << "data = " << setw(5) << *data << endl << flush;
       console_mutex.unlock();
@@ -73,8 +73,8 @@ int main( int /* argc */, char** /* argv */ )
 {
   const size_t NTHREADS = 16;
 
-  typedef int thread_data_t;
-  typedef ThreadPool<AnalysisThread,thread_data_t> thread_pool_t;
+  using thread_data_t = int;
+  using thread_pool_t = ThreadPool<AnalysisThread,thread_data_t>;
 
   // Set up an array of reusable context buffers and add them to
   // the free queue
@@ -89,6 +89,7 @@ int main( int /* argc */, char** /* argv */ )
   // the pool's result queue, prints them, and puts them back into the
   // free queue
   OutputThread<thread_pool_t,thread_data_t> outp(pool, freeQueue);
+  outp.start();
 
   // Add work
   for( size_t i = 0; i < 10000; ++i ) {
