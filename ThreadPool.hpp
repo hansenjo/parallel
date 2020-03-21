@@ -124,7 +124,9 @@ class Thread {
 public:
   Thread() : fState(kNone) {}
   Thread(const Thread&) = delete;
-  Thread(Thread&& rhs)  = delete; // Moving this object does not work properly
+  // Moving this object does not work properly because of the 'this' pointer
+  // passed to ThreadProc. It loses its identity when fThread is moved.
+  Thread(Thread&& rhs) = delete;
   virtual ~Thread() { assert( fState == kJoined ); }
 
   void join() {
