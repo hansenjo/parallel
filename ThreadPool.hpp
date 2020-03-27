@@ -110,7 +110,7 @@ public:
       // Push thread work data onto the queue
       fQueue.push( data );
     }
-    // signal there's new work
+    // Signal there's new work
     fWaitCond.notify_one();
   }
 
@@ -120,65 +120,31 @@ private:
   std::condition_variable fWaitCond;
 };
 
-class Thread {
-public:
-  Thread() : fState(kNone) {}
-  Thread(const Thread&) = delete;
-  // Moving this object does not work properly because of the 'this' pointer
-  // passed to ThreadProc. It loses its identity when fThread is moved.
-  Thread(Thread&& rhs) = delete;
-  virtual ~Thread() { assert( fState == kJoined ); }
-
-  void join() {
-    fThread->join();
-    fState = kJoined;
-  }
-  void start() {
-    fThread = std::make_unique<std::thread>(threadProc, this);
-    fState = kStarted;
-  }
-
-protected:
-  virtual void run() = 0;
-  enum EState { kNone, kStarted, kJoined };
-  EState fState;
-
-private:
-  static void threadProc( Thread* me ) { me->run(); }
-  std::unique_ptr<std::thread> fThread;
-};
-
 template <typename Data_t>
-class PoolWorkerThread : public Thread {
-public:
-  PoolWorkerThread( WorkQueue<Data_t>& wq, WorkQueue<Data_t>& rq )
-    : fWorkQueue(wq), fResultQueue(rq) {}
-protected:
-  WorkQueue<Data_t>& fWorkQueue;
-  WorkQueue<Data_t>& fResultQueue;
-};
-
-
-template <template<typename> class Thread_t, typename Data_t>
 class ThreadPool {
 public:
   // Normal constructor, using internal ResultQueue
-  explicit ThreadPool( size_t n, const void* cfg = nullptr )
+  template <template<typename> class Action, typename T, typename... Args>
+  ThreadPool( size_t n, const Action<T>& action, Args&&... args )
     : fResultQueue(std::make_shared<WorkQueue<Data_t>>())
   {
-    AddThreads(n,cfg);
+    AddThreads(n,action,std::forward<Args>(args)...);
   }
-  // Constructor with shared_ptr of external ResultQueue
+  // Constructor with shared_ptr to external ResultQueue
+  template <template<typename> class Action, typename T, typename... Args>
   ThreadPool( size_t n, std::shared_ptr<WorkQueue<Data_t>> rq,
-              const void* cfg = nullptr ) : fResultQueue(rq)
+              const Action<T>& action, Args&&... args )
+     : fResultQueue(rq)
   {
-    AddThreads(n,cfg);
+    AddThreads(n,action,std::forward<Args>(args)...);
   }
   // Constructor with reference to external ResultQueue
-  ThreadPool( size_t n, WorkQueue<Data_t>& rq, const void* cfg = nullptr )
-    : fResultQueue(&rq)
+  template <template<typename> class Action, typename T, typename... Args>
+  ThreadPool( size_t n, WorkQueue<Data_t>& rq,
+              const Action<T>& action, Args&&... args )
+     : fResultQueue(&rq)
   {
-    AddThreads(n,cfg);
+    AddThreads(n,action,std::forward<Args>(args)...);
   }
 
   ~ThreadPool() {
@@ -190,34 +156,39 @@ public:
     fWorkQueue.add(data);
   }
 
-  WorkQueue<Data_t>& GetWorkQueue() { return fWorkQueue; }
+  WorkQueue<Data_t>& GetWorkQueue()   { return fWorkQueue; }
   WorkQueue<Data_t>& GetResultQueue() { return *fResultQueue; }
 
-  // Wait for the threads to finish, then delete them
+  // Tell the threads to finish, then delete them
   void finish() {
-    for (size_t i=0,e=fThreads.size(); i<e; ++i)
-      fWorkQueue.add(0);
-    for (size_t i=0,e=fThreads.size(); i<e; ++i) {
-      fThreads[i]->join();
-    }
+    for( size_t i=0,e=fThreads.size(); i<e; ++i )
+      // The thread worker functions must be written to terminate as soon as
+      // they pick up a nullptr from fWorkQueue.
+      fWorkQueue.add(nullptr);
+    for( auto& t : fThreads )
+      t->join();
     fThreads.clear();
   }
 
 private:
-  using thrd_t = Thread_t<Data_t>;
-  std::vector<std::unique_ptr<thrd_t>> fThreads;
+  std::vector<std::unique_ptr<std::thread>> fThreads;
   WorkQueue<Data_t>  fWorkQueue;
   std::shared_ptr<WorkQueue<Data_t>> fResultQueue;
 
-  void AddThreads(size_t n, const void* cfg) {
-    fThreads.clear();
+  template <template<typename> class Action, typename T, typename... Args>
+  void AddThreads( size_t n, const Action<T>& action, Args&&... args ) {
     fThreads.reserve(n);
     for (size_t i=0; i<n; ++i) {
-      fThreads.push_back(std::make_unique<thrd_t>( fWorkQueue, *fResultQueue, cfg));
-      fThreads.back()->start();
+       // Spawn threads that run Action::run() with the given arguments
+       fThreads.push_back(
+          std::make_unique<std::thread>(&Action<T>::run,action,this,args...)
+       );
     }
   }
 };
+// Template argument deduction guide
+template <template<typename> class Action, typename T, typename... Args>
+ThreadPool(int, Action<T>, Args...) -> ThreadPool<T>;
 
 } // end namespace ThreadPool
 
