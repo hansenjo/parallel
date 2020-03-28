@@ -15,10 +15,10 @@
 #include <unistd.h>
 #include <algorithm>  // for std::swap
 #include <set>
-#include <ctime>
-#include <cstdlib>
 #include <memory>
 #include <thread>
+#include <chrono>
+#include <random>
 
 // For output module
 #include <fstream>
@@ -41,14 +41,12 @@ static int compress_output = 0;
 static int delay_us = 0;
 static bool order_events = false;
 static bool allow_sync_events = false;
+static random_device rd;
 
 template <typename Context_t>
 class AnalysisWorker {
 public:
-  AnalysisWorker() : fSeed(time(nullptr))
-  {
-    srand(fSeed);
-  }
+  AnalysisWorker() : fGen(rd()), fRand(0,delay_us) {}
 
   void run( ThreadPool<Context_t>* pool )
   {
@@ -75,14 +73,15 @@ public:
 
       // If requested, add random delay
       if( delay_us > 0 )
-	usleep((unsigned int)((float)rand_r(&fSeed)/(float)RAND_MAX*2*delay_us));
+        std::this_thread::sleep_for(std::chrono::microseconds(2*fRand(fGen)));
 
     skip: //TODO: add error status to context, let output skip bad results
       pool->GetResultQueue().add(ctx);
     }
   }
 private:
-  unsigned int fSeed;
+  minstd_rand fGen;
+  uniform_int_distribution<int> fRand;
 };
 
 template <typename Context_t>

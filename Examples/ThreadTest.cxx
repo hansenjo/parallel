@@ -1,24 +1,21 @@
 #include "ThreadPool.hpp"
 #include <iostream>
 #include <iomanip>
-#include <cstdlib>
-#include <unistd.h>
-#include <ctime>
+#include <chrono>
+#include <random>
 
 using namespace std;
 using namespace ThreadUtil;
 
 // stdout is a shared resource, so protect it with a mutex
-mutex console_mutex;
+static mutex console_mutex;
+static random_device rd;
 
 template <typename Data_t>
 class AnalysisWorker
 {
 public:
-  AnalysisWorker() : fSeed( time(nullptr))
-  {
-    srand(fSeed);
-  }
+  AnalysisWorker() : fGen(rd()), fRand(1,20) {}
   void run( ThreadPool<Data_t>* pool )
   {
     while( Data_t* data = pool->GetWorkQueue().next() ) {
@@ -28,13 +25,15 @@ public:
            << ", data = " << setw(5) << *data << endl << flush;
       console_mutex.unlock();
 #endif
-      usleep((unsigned int)((float)rand_r(&fSeed)/(float)RAND_MAX*20000));
+      int ms = fRand(fGen);
+      std::this_thread::sleep_for(std::chrono::milliseconds(ms));
       *data *= -10;
       pool->GetResultQueue().add(data);
     }
   }
 private:
-  unsigned int fSeed;
+  minstd_rand fGen;
+  uniform_int_distribution<int> fRand;
 };
 
 template <typename Data_t>
