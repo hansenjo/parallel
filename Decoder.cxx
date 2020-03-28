@@ -26,7 +26,7 @@ int Decoder::Load( evbuf_t* evbuffer )
   char* evtp = ((char*)evbuffer)+sizeof(event.header);
   int ndet = (event.header.event_info & 0xFFFF);
   for( int i = 0; i < ndet; ++i ) {
-    ModuleData* m = (ModuleData*)evtp;
+    auto* m = (ModuleData*)evtp;
     if( !m )
       return 3;
     int imod = m->header.module_number;

@@ -15,7 +15,7 @@ template <typename Data_t>
 class AnalysisWorker
 {
 public:
-  AnalysisWorker() : fSeed( time( 0))
+  AnalysisWorker() : fSeed( time(nullptr))
   {
     srand(fSeed);
   }
@@ -76,7 +76,7 @@ int main( int /* argc */, char** /* argv */ )
   }
   AnalysisWorker<thread_data_t> analysisWorker;
   // Set up the pool of worker threads
-  ThreadPool pool(NTHREADS,analysisWorker);
+  ThreadPool<thread_data_t> pool(NTHREADS,analysisWorker);
   // Set up and start the output queue. It takes processed items from
   // the pool's result queue, prints them, and puts them back into the
   // free queue
