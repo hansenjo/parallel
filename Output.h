@@ -13,8 +13,8 @@ typedef boost::iostreams::filtering_ostream ostrm_t;
 
 class OutputElement {
 public:
-  OutputElement() {}
-  virtual ~OutputElement() {}
+  OutputElement() = default;
+  virtual ~OutputElement() = default;
 
   virtual const std::string& GetName() const = 0;
   virtual char GetType() const = 0;
@@ -23,7 +23,7 @@ public:
 
 class PlainVariable : public OutputElement {
 public:
-  PlainVariable( Variable* var ) : fVar(var) {}
+  explicit PlainVariable( Variable* var ) : fVar(var) {}
 
   virtual const std::string& GetName() const;
   virtual char GetType() const { return (2<<5)+sizeof(double); }
@@ -35,7 +35,7 @@ private:
 
 class EventNumberVariable : public OutputElement {
 public:
-  EventNumberVariable( const int& nev ) : fNev(nev) {}
+  explicit EventNumberVariable( const int& nev ) : fNev(nev) {}
 
   virtual const std::string& GetName() const { return fName; }
   virtual char GetType() const { return sizeof(int); }
