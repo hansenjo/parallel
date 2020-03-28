@@ -18,6 +18,7 @@
 #include <ctime>
 #include <cstdlib>
 #include <memory>
+#include <thread>
 
 // For output module
 #include <fstream>
@@ -42,20 +43,16 @@ static bool order_events = false;
 static bool allow_sync_events = false;
 
 template <typename Context_t>
-class AnalysisThread : public PoolWorkerThread<Context_t>
-{
+class AnalysisWorker {
 public:
-  AnalysisThread( WorkQueue<Context_t>& wq, WorkQueue<Context_t>& rq,
-		  const void* /* cfg */ )
-    : PoolWorkerThread<Context_t>(wq,rq), fSeed(time(nullptr))
+  AnalysisWorker() : fSeed(time(nullptr))
   {
     srand(fSeed);
   }
 
-protected:
-  virtual void run()
+  void run( ThreadPool<Context_t>* pool )
   {
-    while( Context_t* ctx = this->fWorkQueue.next() ) {
+    while( Context_t* ctx = pool->GetWorkQueue().next() ) {
 
       // Process all defined analysis objects
 
@@ -81,7 +78,7 @@ protected:
 	usleep((unsigned int)((float)rand_r(&fSeed)/(float)RAND_MAX*2*delay_us));
 
     skip: //TODO: add error status to context, let output skip bad results
-      this->fResultQueue.add(ctx);
+      pool->GetResultQueue().add(ctx);
     }
   }
 private:
@@ -89,73 +86,86 @@ private:
 };
 
 template <typename Context_t>
-class OutputThread : public PoolWorkerThread<Context_t>
-{
-public:
-  OutputThread( WorkQueue<Context_t>& wq, WorkQueue<Context_t>& rq, const void* cfg )
-    : PoolWorkerThread<Context_t>(wq,rq), fHeaderWritten(false), fLastWritten(0)
-  {
-    const char* odat_file = static_cast<const char*>(cfg);
-    if( !odat_file ||!*odat_file )
-      return; // TODO: throw exception
-
-    //TODO: make thread-safe
-    // Open output file and set up filter chain
-    outp.open( odat_file, ios::out|ios::trunc|ios::binary);
-    if( !outp ) {
-      cerr << "Error opening output data file " << odat_file << endl;
-      return;
+class OutputWorker {
+private:
+  // Data shared between all output threads
+  struct SharedData {
+    SharedData() : fHeaderWritten(false), fLastWritten(0) {}
+    ~SharedData() { close(); }
+    int open( const string& odat_file ) {
+      outp.open( odat_file, ios::out|ios::trunc|ios::binary);
+      if( !outp )
+        return 1;
+      if( compress_output > 0 )
+        outs.push(gzip_compressor());
+      outs.push(outp);
+      return 0;
     }
-    if( compress_output > 0 )
-      outs.push(gzip_compressor());
-    outs.push(outp);
+    void close() { outs.reset(); outp.close(); }
+    mutex output_mutex;
+    ofstream outp;
+    ostrm_t outs;
+    bool fHeaderWritten;
+    int  fLastWritten;
+  };
+  shared_ptr<SharedData> fShared;
+  // Queue for finished contexts (shared data too, but already thread-safe)
+  WorkQueue<Context_t>* fFreeQueue;
+  // Per-thread work data
+  std::set<Context_t*,typename Context_t::SeqLess> fBuffer;
+
+public:
+  OutputWorker( const string& odat_file, WorkQueue<Context_t>& freeQueue )
+    : fShared(make_shared<SharedData>()), fFreeQueue(&freeQueue)
+  {
+    // Open output file and set up filter chain
+    if( fShared->open(odat_file) != 0 )  {
+      cerr << "Error opening output data file " << odat_file << endl;
+      return; // TODO: throw exception
+    }
   }
 
-  ~OutputThread()
+  OutputWorker( const OutputWorker& rhs )
+    : fShared(rhs.fShared), fFreeQueue(rhs.fFreeQueue), fBuffer{}
   {
-    Close();
+    // Copy constructor. Called when used in std::thread
   }
 
-  int Close()
+  ~OutputWorker() = default;
+
+  void run( ThreadPool<Context_t>* pool )
   {
-    //TODO: Make thread-safe
-    outs.reset();
-    outp.close();
-    return 0;
-  }
+    while( Context_t* ctx = pool->GetResultQueue().next() ) {
+      fShared->output_mutex.lock();
 
-protected:
-  using ContextSet_t = set<Context_t*,typename Context_t::SeqLess>;
-
-  virtual void run()
-  {
-    while( Context_t* ctx = this->fWorkQueue.next() ) {
-
-      // TODO: make thread-safe
+      ofstream& outp = fShared->outp;
+      ostrm_t& outs = fShared->outs;
       if( !outp.good() || !outs.good() )
 	// TODO: handle errors properly
 	goto skip;
 
-      if( !fHeaderWritten ) {
+      if( !fShared->fHeaderWritten ) {
 	WriteHeader( outs, ctx );
-	fHeaderWritten = true;
+        fShared->fHeaderWritten = true;
       }
       if( order_events ) {
 	// Wait for next event in sequence before writing
-	if( ctx->iseq == fLastWritten+1 ) {
+	// FIXME: I don't think this works with > 1 thread
+        int& last_written = fShared->fLastWritten;
+	if( ctx->iseq == last_written+1 ) {
 	  WriteEvent( outs, ctx );
-	  ++fLastWritten;
+	  ++last_written;
 	  ctx->UnmarkActive();
-	  this->fResultQueue.add(ctx);
+	  fFreeQueue->add(ctx);
 	  // Check if some or all of the buffer can be written now, too
 	  for( auto it = fBuffer.begin(), jt = it;
-               it != fBuffer.end() && (*it)->iseq == fLastWritten + 1; it = jt ) {
+               it != fBuffer.end() && (*it)->iseq == last_written + 1; it = jt ) {
 	    ++jt;
 	    WriteEvent( outs, *it );
-	    ++fLastWritten;
+	    ++last_written;
 	    (*it)->UnmarkActive();
-	    this->fResultQueue.add(*it);
-	    fBuffer.erase( it);
+	    fFreeQueue->add(*it);
+	    fBuffer.erase(it);
 	  }
 	} else {
 	  // Buffer out-of-order events, sorted by iseq
@@ -166,25 +176,19 @@ protected:
       } else {
 	WriteEvent( outs, ctx );
       skip:
+        fShared->output_mutex.unlock();
 	ctx->UnmarkActive();
-	this->fResultQueue.add(ctx);
+	fFreeQueue->add(ctx);
       }
     }
   }
-private:
-  std::ofstream outp;
-  ostrm_t outs;
-  bool fHeaderWritten;
-  int  fLastWritten;
-  ContextSet_t fBuffer;
 
+private:
   void WriteEvent( ostrm_t& os, Context_t* ctx, bool do_header = false )
   {
     // Write output file data (or header names)
-    for( auto it = ctx->outvars.begin();
-	 it != ctx->outvars.end(); ++it ) {
-      OutputElement* var = *it;
-      var->write( outs, do_header );
+    for( auto* var : ctx->outvars ) {
+      var->write( os, do_header );
     }
     if( debug > 0 && !do_header )
       cout << "Wrote nev = " << ctx->nev << endl;
@@ -352,15 +356,17 @@ int main( int argc, char* const *argv )
       && odat_file.substr(odat_file.size()-3) != ".gz" )
     odat_file.append(".gz");
 
-#ifdef OUTPUT_POOL
-  // Set up output thread(s). Finished Contexts go back into freeQueue
-  ThreadPool<OutputThread,Context> output( 1, freeQueue, odat_file.c_str() );
   // Set up nthreads analysis threads. Finished Contexts go into the output queue
-  ThreadPool<AnalysisThread,Context> pool( nthreads, output.GetWorkQueue() );
+  AnalysisWorker<Context> analysisWorker;
+  ThreadPool<Context> pool( nthreads, analysisWorker );
+
+  // Set up output thread(s). Finished Contexts go back into freeQueue
+  OutputWorker<Context> outputWorker( odat_file, *freeQueue );
+#ifdef OUTPUT_POOL
+  ThreadPool<Context> out_pool( 1, outputWorker );
 #else
   // Single output thread
-  ThreadPool<AnalysisThread,Context> pool( nthreads );
-  OutputThread<Context> output( pool.GetResultQueue(), *freeQueue, odat_file.c_str() );
+  std::thread output(&OutputWorker<Context>::run, outputWorker, &pool );
 #endif
 
   unsigned long nev = 0;
@@ -414,12 +420,11 @@ int main( int argc, char* const *argv )
   pool.finish();
 #ifdef OUTPUT_POOL
   // Terminate output threads
-  output.finish();
+  out_pool.finish();
 #else
   // Terminate single output thread
   pool.GetResultQueue().add(nullptr);
   output.join();
-  output.Close();
 #endif
 
   DeleteContainer( gDets );
