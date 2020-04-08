@@ -40,11 +40,12 @@ template <typename Data_t>
 class OutputWorker
 {
 public:
-  explicit OutputWorker( WorkQueue<Data_t>& freeQueue ) : fFreeQueue( freeQueue) {}
+  OutputWorker( WorkQueue<Data_t>& resultQueue, WorkQueue<Data_t>& freeQueue )
+  : fResultQueue(resultQueue), fFreeQueue(freeQueue) {}
 
-  void run( ThreadPool<Data_t>* pool )
+  void run()
   {
-    while( Data_t* data = pool->GetResultQueue().next() ) {
+    while( Data_t* data = fResultQueue.next() ) {
       console_mutex.lock();
       cout << "data = " << setw(5) << *data << endl << flush;
       console_mutex.unlock();
@@ -56,6 +57,7 @@ public:
     console_mutex.unlock();
   }
 private:
+  WorkQueue<Data_t>& fResultQueue;
   WorkQueue<Data_t>& fFreeQueue;
 };
 
@@ -79,8 +81,8 @@ int main( int /* argc */, char** /* argv */ )
   // Set up and start the output queue. It takes processed items from
   // the pool's result queue, prints them, and puts them back into the
   // free queue
-  OutputWorker<thread_data_t> outputWorker( freeQueue);
-  std::thread outp(&OutputWorker<thread_data_t>::run, outputWorker, &pool);
+  std::thread outp( &OutputWorker<thread_data_t>::run,
+                    OutputWorker<thread_data_t>(pool.GetResultQueue(), freeQueue) );
 
   // Add work
   for( size_t i = 0; i < 10000; ++i ) {
