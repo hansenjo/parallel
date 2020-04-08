@@ -166,12 +166,12 @@ public:
       // they pick up a nullptr from fWorkQueue.
       fWorkQueue.add(nullptr);
     for( auto& t : fThreads )
-      t->join();
+      t.join();
     fThreads.clear();
   }
 
 private:
-  std::vector<std::unique_ptr<std::thread>> fThreads;
+  std::vector<std::thread> fThreads;
   WorkQueue<Data_t>  fWorkQueue;
   std::shared_ptr<WorkQueue<Data_t>> fResultQueue;
 
@@ -180,15 +180,15 @@ private:
     fThreads.reserve(n);
     for (size_t i=0; i<n; ++i) {
        // Spawn threads that run Action::run() with the given arguments
-       fThreads.push_back(
-          std::make_unique<std::thread>(&Action<T>::run,action,this,args...)
-       );
+       fThreads.emplace_back(&Action<T>::run,action,this,args...);
     }
   }
 };
+#if __cplusplus >= 201701L
 // Template argument deduction guide
 template <template<typename> class Action, typename T, typename... Args>
 ThreadPool(int, Action<T>, Args...) -> ThreadPool<T>;
+#endif /* __cplusplus >= 201701L */
 
 } // end namespace ThreadPool
 
