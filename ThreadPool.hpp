@@ -84,31 +84,32 @@
 
 namespace ThreadUtil {
 
-// Thread-safe queue with fine-grained locking
-// Adapted from "C++ Concurrency in Action", A. Williams, Manning, 2019, ch. 6
-template <typename Data_t>
+// Thread-safe queue with fine-grained locking. Stores raw pointers to the
+// queued objects, which are assumed to be owned by the caller.
+// Adapted from "C++ Concurrency in Action", 2nd ed., A. Williams, Manning, 2019, ch. 6
+template<typename Data_t>
 class WorkQueue {
 public:
-  WorkQueue() : head(new node), tail(head.get()) {}
-  WorkQueue(const WorkQueue&) = delete;
-  WorkQueue& operator=(const WorkQueue&) = delete;
+  WorkQueue() : head(new Node), tail(head.get()) {}
+  WorkQueue( const WorkQueue& ) = delete;
+  WorkQueue& operator=( const WorkQueue& ) = delete;
 
   Data_t* try_pop() {
-    std::unique_ptr<node> old_head = try_pop_head();
+    std::unique_ptr<Node> const old_head = try_pop_head();
     return old_head ? old_head->data : nullptr;
   }
   Data_t* wait_and_pop() {
-    std::unique_ptr<node> const old_head = wait_pop_head();
+    std::unique_ptr<Node> const old_head = wait_pop_head();
     return old_head->data;
   }
-  void push(Data_t* new_data) {
-    std::unique_ptr<node> p(new node);
+  void push( Data_t* new_data ) {
+    std::unique_ptr<Node> p(new Node);
     {
       std::lock_guard<std::mutex> tail_lock(tail_mutex);
       tail->data = new_data;
-      node *const new_tail = p.get();
+      Node* const new_tail = p.get();
       tail->next = std::move(p);
-      tail=new_tail;
+      tail = new_tail;
     }
     data_cond.notify_one();
   }
@@ -118,74 +119,64 @@ public:
   void add( Data_t* data ) { push(data); }
 
 private:
-  struct node
-  {
+  struct Node {
+    Node() : data(nullptr) {}
     Data_t* data;
-    std::unique_ptr<node> next;
+    std::unique_ptr<Node> next;
   };
+
   std::mutex head_mutex;
-  std::unique_ptr<node> head;
+  std::unique_ptr<Node> head;
   std::mutex tail_mutex;
-  node* tail;
+  Node* tail;
   std::condition_variable data_cond;
 
-  node* get_tail()
-  {
+  Node* get_tail() {
     std::lock_guard<std::mutex> tail_lock(tail_mutex);
     return tail;
   }
-  std::unique_ptr<node> pop_head()
-  {
-    std::unique_ptr<node> old_head = std::move(head);
-    head=std::move(old_head->next);
+  std::unique_ptr<Node> pop_head() {
+    std::unique_ptr<Node> old_head = std::move(head);
+    head = std::move(old_head->next);
     return old_head;
   }
-  std::unique_lock<std::mutex> wait_for_data()
-  {
+  std::unique_ptr<Node> wait_pop_head() {
     std::unique_lock<std::mutex> head_lock(head_mutex);
-    data_cond.wait(head_lock,[&]{return head.get()!=get_tail();});
-    return head_lock;
-  }
-  std::unique_ptr<node> wait_pop_head()
-  {
-    std::unique_lock<std::mutex> head_lock(wait_for_data());
+    while( head.get() == get_tail() )
+      data_cond.wait(head_lock);
     return pop_head();
   }
-  std::unique_ptr<node> try_pop_head()
-  {
+  std::unique_ptr<Node> try_pop_head() {
     std::lock_guard<std::mutex> head_lock(head_mutex);
-    if(head.get()==get_tail()) {
-      return std::unique_ptr<node>();
+    if( head.get() == get_tail() ) {
+      return nullptr;
     }
     return pop_head();
   }
 };
 
-template <typename Data_t>
+template<typename Data_t>
 class ThreadPool {
 public:
   // Normal constructor, using internal ResultQueue
-  template <template<typename> class Action, typename T, typename... Args>
-  ThreadPool( size_t n, const Action<T>& action, Args&&... args )
-    : fResultQueue(std::make_shared<WorkQueue<Data_t>>())
-  {
-    AddThreads(n,action,std::forward<Args>(args)...);
+  template<template<typename> class Action, typename T, typename... Args>
+  ThreadPool( size_t n, const Action<T>& action, Args&& ... args )
+          : fResultQueue(std::make_shared<WorkQueue<Data_t>>()) {
+    AddThreads(n, action, std::forward<Args>(args)...);
   }
   // Constructor with shared_ptr to external ResultQueue
-  template <template<typename> class Action, typename T, typename... Args>
+  template<template<typename> class Action, typename T, typename... Args>
   ThreadPool( size_t n, std::shared_ptr<WorkQueue<Data_t>> rq,
-              const Action<T>& action, Args&&... args )
-     : fResultQueue(rq)
-  {
-    AddThreads(n,action,std::forward<Args>(args)...);
+              const Action<T>& action, Args&& ... args )
+          : fResultQueue(rq) {
+    AddThreads(n, action, std::forward<Args>(args)...);
   }
   // Constructor with reference to external ResultQueue
-  template <template<typename> class Action, typename T, typename... Args>
+  template<template<typename> class Action, typename T, typename... Args>
   ThreadPool( size_t n, WorkQueue<Data_t>& rq,
-              const Action<T>& action, Args&&... args )
-     : fResultQueue(&rq)
-  {
-    AddThreads(n,action,std::forward<Args>(args)...);
+              const Action<T>& action, Args&& ... args )
+          : fResultQueue(&rq) {
+    AddThreads(n, action, std::forward<Args>(args)...);
   }
 
   ~ThreadPool() {
@@ -197,12 +188,12 @@ public:
     fWorkQueue.add(data);
   }
 
-  WorkQueue<Data_t>& GetWorkQueue()   { return fWorkQueue; }
+  WorkQueue<Data_t>& GetWorkQueue() { return fWorkQueue; }
   WorkQueue<Data_t>& GetResultQueue() { return *fResultQueue; }
 
   // Tell the threads to finish, then delete them
   void finish() {
-    for( size_t i=0,e=fThreads.size(); i<e; ++i )
+    for( size_t i = 0, e = fThreads.size(); i < e; ++i )
       // The thread worker functions must be written to terminate as soon as
       // they pick up a nullptr from fWorkQueue.
       fWorkQueue.add(nullptr);
@@ -213,22 +204,23 @@ public:
 
 private:
   std::vector<std::thread> fThreads;
-  WorkQueue<Data_t>  fWorkQueue;
+  WorkQueue<Data_t> fWorkQueue;
   std::shared_ptr<WorkQueue<Data_t>> fResultQueue;
 
-  template <template<typename> class Action, typename T, typename... Args>
-  void AddThreads( size_t n, const Action<T>& action, Args&&... args ) {
+  template<template<typename> class Action, typename T, typename... Args>
+  void AddThreads( size_t n, const Action<T>& action, Args&& ... args ) {
     fThreads.reserve(n);
-    for (size_t i=0; i<n; ++i) {
-       // Spawn threads that run Action::run() with the given arguments
-       fThreads.emplace_back(&Action<T>::run,action,this,args...);
+    for( size_t i = 0; i < n; ++i ) {
+      // Spawn threads that run Action::run() with the given arguments
+      fThreads.emplace_back(&Action<T>::run, action, this, args...);
     }
   }
 };
+
 #if __cplusplus >= 201701L
 // Template argument deduction guide
-template <template<typename> class Action, typename T, typename... Args>
-ThreadPool(int, Action<T>, Args...) -> ThreadPool<T>;
+template<template<typename> class Action, typename T, typename... Args>
+ThreadPool( int, Action<T>, Args... ) -> ThreadPool<T>;
 #endif /* __cplusplus >= 201701L */
 
 } // end namespace ThreadPool

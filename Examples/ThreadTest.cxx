@@ -11,13 +11,11 @@ using namespace ThreadUtil;
 static mutex console_mutex;
 static random_device rd;
 
-template <typename Data_t>
-class AnalysisWorker
-{
+template<typename Data_t>
+class AnalysisWorker {
 public:
-  AnalysisWorker() : fGen(rd()), fRand(1,20) {}
-  void run( ThreadPool<Data_t>* pool )
-  {
+  AnalysisWorker() : fGen(rd()), fRand(1, 20) {}
+  void run( ThreadPool<Data_t>* pool ) {
     while( Data_t* data = pool->GetWorkQueue().next() ) {
 #ifdef DEBUG
       console_mutex.lock();
@@ -36,15 +34,13 @@ private:
   uniform_int_distribution<int> fRand;
 };
 
-template <typename Data_t>
-class OutputWorker
-{
+template<typename Data_t>
+class OutputWorker {
 public:
   OutputWorker( WorkQueue<Data_t>& resultQueue, WorkQueue<Data_t>& freeQueue )
-  : fResultQueue(resultQueue), fFreeQueue(freeQueue) {}
+          : fResultQueue(resultQueue), fFreeQueue(freeQueue) {}
 
-  void run()
-  {
+  void run() {
     while( Data_t* data = fResultQueue.next() ) {
       console_mutex.lock();
       cout << "data = " << setw(5) << *data << endl << flush;
@@ -72,17 +68,17 @@ int main( int /* argc */, char** /* argv */ )
   // the free queue
   thread_data_t data[NTHREADS];
   WorkQueue<thread_data_t> freeQueue;
-  for(int& item : data) {
+  for( int& item : data ) {
     freeQueue.add(&item);
   }
   AnalysisWorker<thread_data_t> analysisWorker;
   // Set up the pool of worker threads
-  ThreadPool<thread_data_t> pool(NTHREADS,analysisWorker);
+  ThreadPool<thread_data_t> pool(NTHREADS, analysisWorker);
   // Set up and start the output queue. It takes processed items from
   // the pool's result queue, prints them, and puts them back into the
   // free queue
-  std::thread outp( &OutputWorker<thread_data_t>::run,
-                    OutputWorker<thread_data_t>(pool.GetResultQueue(), freeQueue) );
+  std::thread outp(&OutputWorker<thread_data_t>::run,
+                   OutputWorker<thread_data_t>(pool.GetResultQueue(), freeQueue));
 
   // Add work
   for( size_t i = 0; i < 10000; ++i ) {
