@@ -90,7 +90,7 @@ int main( int /* argc */, char** /* argv */ )
   }
 
   pool.finish();
-  pool.GetResultQueue().add(0);
+  pool.GetResultQueue().add(nullptr);
   outp.join();
 
   return 0;

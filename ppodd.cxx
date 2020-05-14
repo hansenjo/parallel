@@ -185,7 +185,7 @@ public:
 private:
   void WriteEvent( ostrm_t& os, Context_t* ctx, bool do_header = false ) {
     // Write output file data (or header names)
-    for( auto* var : ctx->outvars ) {
+    for( auto var : ctx->outvars ) {
       var->write(os, do_header);
     }
     if( debug > 0 && !do_header )

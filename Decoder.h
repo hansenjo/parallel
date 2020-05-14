@@ -31,7 +31,7 @@ private:
 inline
 int Decoder::GetNdata( int m ) const
 {
-  if( event.module[m] == 0 )
+  if( event.module[m] == nullptr )
     return 0;
 
   return event.module[m]->header.module_ndata;
