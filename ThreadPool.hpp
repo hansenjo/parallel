@@ -1,4 +1,4 @@
-// A generic ThreadPool implementation
+// A generic QueuingThreadPool implementation
 // Ole Hansen <ole@jlab.org> 12-Feb-2015
 //
 // To use this class:
@@ -29,7 +29,7 @@
 //     them, and put the processed Data_t items into fResultQueue.
 //     Example:
 //
-//     #include "ThreadPool.hpp"
+//     #include "QueuingThreadPool.hpp"
 //
 //     template< typename T>
 //     class WorkerThread : public ThreadUtil::PoolWorkerThread<T>
@@ -52,11 +52,11 @@
 // (5) Instantiate the thread pool. In the current implementation, the number of
 //     threads is fixed. Example:
 // (5a)
-//     ThreadUtil::ThreadPool<WorkerThread,Data_t> pool(8);
+//     ThreadUtil::QueuingThreadPool<WorkerThread,Data_t> pool(8);
 //
 //     or using the freeQueue as the result queue:
 // (5b)
-//     ThreadUtil::ThreadPool<WorkerThread,Data_t> pool(8, freeQueue);
+//     ThreadUtil::QueuingThreadPool<WorkerThread,Data_t> pool(8, freeQueue);
 //
 // (6) To process data, retrieve a free data object, put input data into it,
 //     and pass it to the pool for processing. Example, using (5b) above:
@@ -64,7 +64,7 @@
 //     for( int i=0; i<10000; ++i ) {
 //        Data_t* d = freeQueue.next();
 //        d->input = i;
-//        pool.Process(d); // automatically refills freeQueue
+//        pool.push_work(d); // automatically refills freeQueue
 //     }
 //
 //     Results should be processed within the WorkerThread objects.
@@ -94,19 +94,19 @@ public:
   WorkQueue( const WorkQueue& ) = delete;
   WorkQueue& operator=( const WorkQueue& ) = delete;
 
-  Data_t* try_pop() {
+  std::unique_ptr<Data_t> try_pop() {
     std::unique_ptr<Node> const old_head = try_pop_head();
     return old_head ? old_head->data : nullptr;
   }
-  Data_t* wait_and_pop() {
+  std::unique_ptr<Data_t> wait_and_pop() {
     std::unique_ptr<Node> const old_head = wait_pop_head();
-    return old_head->data;
+    return std::move(old_head->data);
   }
-  void push( Data_t* new_data ) {
+  void push( std::unique_ptr<Data_t> new_data ) {
     std::unique_ptr<Node> p(new Node);
     {
       std::lock_guard<std::mutex> tail_lock(tail_mutex);
-      tail->data = new_data;
+      tail->data = std::move(new_data);
       Node* const new_tail = p.get();
       tail->next = std::move(p);
       tail = new_tail;
@@ -115,13 +115,13 @@ public:
   }
 
   // FIXME: old API
-  Data_t* next() { return wait_and_pop(); }
-  void add( Data_t* data ) { push(data); }
+  std::unique_ptr<Data_t> next() { return wait_and_pop(); }
+  void add( std::unique_ptr<Data_t> data ) { push(std::move(data)); }
 
 private:
   struct Node {
-    Node() : data(nullptr) {}
-    Data_t* data;
+    Node() = default;
+    std::unique_ptr<Data_t> data;
     std::unique_ptr<Node> next;
   };
 
@@ -156,36 +156,45 @@ private:
 };
 
 template<typename Data_t>
-class ThreadPool {
+class QueuingThreadPool {
 public:
   // Normal constructor, using internal ResultQueue
   template<template<typename> class Action, typename T, typename... Args>
-  ThreadPool( size_t n, const Action<T>& action, Args&& ... args )
+  QueuingThreadPool( size_t n, const Action<T>& action, Args&& ... args )
           : fResultQueue(std::make_shared<WorkQueue<Data_t>>()) {
     AddThreads(n, action, std::forward<Args>(args)...);
   }
   // Constructor with shared_ptr to external ResultQueue
   template<template<typename> class Action, typename T, typename... Args>
-  ThreadPool( size_t n, std::shared_ptr<WorkQueue<Data_t>> rq,
-              const Action<T>& action, Args&& ... args )
+  QueuingThreadPool( size_t n, std::shared_ptr<WorkQueue<Data_t>> rq,
+                     const Action<T>& action, Args&& ... args )
           : fResultQueue(rq) {
     AddThreads(n, action, std::forward<Args>(args)...);
   }
   // Constructor with reference to external ResultQueue
   template<template<typename> class Action, typename T, typename... Args>
-  ThreadPool( size_t n, WorkQueue<Data_t>& rq,
-              const Action<T>& action, Args&& ... args )
+  QueuingThreadPool( size_t n, WorkQueue<Data_t>& rq,
+                     const Action<T>& action, Args&& ... args )
           : fResultQueue(&rq) {
     AddThreads(n, action, std::forward<Args>(args)...);
   }
 
-  ~ThreadPool() {
+  ~QueuingThreadPool() {
     finish();
   }
 
   // Queue up data for processing
-  void Process( Data_t* data ) {
-    fWorkQueue.add(data);
+  void push_work( std::unique_ptr<Data_t> data ) {
+    fWorkQueue.push(std::move(data));
+  }
+  std::unique_ptr<Data_t> pop_work() {
+    return fWorkQueue.wait_and_pop();
+  }
+  void push_result( std::unique_ptr<Data_t> data ) {
+    fResultQueue->push(std::move(data));
+  }
+  std::unique_ptr<Data_t> pop_result() {
+    return fResultQueue->wait_and_pop();
   }
 
   WorkQueue<Data_t>& GetWorkQueue() { return fWorkQueue; }
@@ -196,7 +205,7 @@ public:
     for( size_t i = 0, e = fThreads.size(); i < e; ++i )
       // The thread worker functions must terminate when
       // they pick up a nullptr from fWorkQueue.
-      fWorkQueue.add(nullptr);
+      fWorkQueue.push(nullptr);
     for( auto& t : fThreads )
       t.join();
     fThreads.clear();
@@ -220,9 +229,9 @@ private:
 #if __cplusplus >= 201701L
 // Template argument deduction guide
 template<template<typename> class Action, typename T, typename... Args>
-ThreadPool( size_t, Action<T>, Args... ) -> ThreadPool<T>;
+QueuingThreadPool( size_t, Action<T>, Args... ) -> QueuingThreadPool<T>;
 #endif /* __cplusplus >= 201701L */
 
-} // end namespace ThreadPool
+} // end namespace QueuingThreadPool
 
 #endif

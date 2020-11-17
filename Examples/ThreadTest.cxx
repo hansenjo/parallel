@@ -15,8 +15,8 @@ template<typename Data_t>
 class AnalysisWorker {
 public:
   AnalysisWorker() : fGen(rd()), fRand(1, 20) {}
-  void run( ThreadPool<Data_t>* pool ) {
-    while( Data_t* data = pool->GetWorkQueue().next() ) {
+  void run( QueuingThreadPool<Data_t>* pool ) {
+    while( std::unique_ptr<Data_t> data = pool->pop_work() ) {
 #ifdef DEBUG
       console_mutex.lock();
       cout << "Thread " << pthread_self()
@@ -26,7 +26,7 @@ public:
       int ms = fRand(fGen);
       std::this_thread::sleep_for(std::chrono::milliseconds(ms));
       *data *= -10;
-      pool->GetResultQueue().add(data);
+      pool->push_result(std::move(data));
     }
   }
 private:
@@ -41,12 +41,12 @@ public:
           : fResultQueue(resultQueue), fFreeQueue(freeQueue) {}
 
   void run() {
-    while( Data_t* data = fResultQueue.next() ) {
+    while( std::unique_ptr<Data_t> data = fResultQueue.next() ) {
       console_mutex.lock();
       cout << "data = " << setw(5) << *data << endl << flush;
       console_mutex.unlock();
       assert(*data <= 0);
-      fFreeQueue.add(data);
+      fFreeQueue.push(std::move(data));
     }
     console_mutex.lock();
     cout << "Output thread terminating" << endl;
@@ -66,16 +66,16 @@ int main( int /* argc */, char** /* argv */ )
 
   // Set up an array of reusable context buffers and add them to
   // the free queue
-  thread_data_t data[NTHREADS];
   WorkQueue<thread_data_t> freeQueue;
-  for( int& item : data ) {
-    freeQueue.add(&item);
+  for( size_t i=0; i<NTHREADS; ++i ) {
+    std::unique_ptr<thread_data_t> item(new thread_data_t);
+    freeQueue.push(std::move(item));
   }
   AnalysisWorker<thread_data_t> analysisWorker;
   // Set up the pool of worker threads
-  ThreadPool<thread_data_t> pool(NTHREADS, analysisWorker);
+  QueuingThreadPool<thread_data_t> pool(NTHREADS, analysisWorker);
   // With template argument deduction, this works too, although it's less clear
-  //ThreadPool pool(NTHREADS, analysisWorker);
+  //QueuingThreadPool pool(NTHREADS, analysisWorker);
   // Set up and start the output queue. It takes processed items from
   // the pool's result queue, prints them, and puts them back into the
   // free queue
@@ -84,15 +84,15 @@ int main( int /* argc */, char** /* argv */ )
 
   // Add work
   for( size_t i = 0; i < 10000; ++i ) {
-    thread_data_t* datap = freeQueue.next();
+    std::unique_ptr<thread_data_t> datap = freeQueue.next();
     *datap = i;
-    pool.Process(datap);
-    // Note: Process() fills the pool's result queue and hence triggers
+    pool.push_work(std::move(datap));
+    // Note: push_work() fills the pool's result queue and hence triggers
     // action in the output queue
   }
 
   pool.finish();
-  pool.GetResultQueue().add(nullptr);
+  pool.push_result(nullptr);  // Terminate output thread
   outp.join();
 
   return 0;
