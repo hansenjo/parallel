@@ -74,6 +74,8 @@ int main( int /* argc */, char** /* argv */ )
   AnalysisWorker<thread_data_t> analysisWorker;
   // Set up the pool of worker threads
   ThreadPool<thread_data_t> pool(NTHREADS, analysisWorker);
+  // With template argument deduction, this works too, although it's less clear
+  //ThreadPool pool(NTHREADS, analysisWorker);
   // Set up and start the output queue. It takes processed items from
   // the pool's result queue, prints them, and puts them back into the
   // free queue
