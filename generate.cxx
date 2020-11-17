@@ -10,7 +10,6 @@
 #include <cstring>
 #include <iostream>
 #include <unistd.h>
-#include <cmath>
 #include <cassert>
 
 using namespace std;
@@ -30,8 +29,6 @@ void gauss( double& y1, double& y2 )
   w = sqrt( (-2.0 * log( w ) ) / w );
   y1 = x1 * w;
   y2 = x2 * w;
-
-  return;
 }
 
 static const char* prgname;

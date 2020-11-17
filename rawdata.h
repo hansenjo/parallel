@@ -3,7 +3,7 @@
 #ifndef PPODD_RAWDATA
 #define PPODD_RAWDATA
 
-#include <stdint.h>
+#include <cstdint>
 
 // For each event
 struct EventHeader {

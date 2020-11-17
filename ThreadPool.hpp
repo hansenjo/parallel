@@ -194,7 +194,7 @@ public:
   // Tell the threads to finish, then delete them
   void finish() {
     for( size_t i = 0, e = fThreads.size(); i < e; ++i )
-      // The thread worker functions must be written to terminate as soon as
+      // The thread worker functions must terminate when
       // they pick up a nullptr from fWorkQueue.
       fWorkQueue.add(nullptr);
     for( auto& t : fThreads )
@@ -220,7 +220,7 @@ private:
 #if __cplusplus >= 201701L
 // Template argument deduction guide
 template<template<typename> class Action, typename T, typename... Args>
-ThreadPool( int, Action<T>, Args... ) -> ThreadPool<T>;
+ThreadPool( size_t, Action<T>, Args... ) -> ThreadPool<T>;
 #endif /* __cplusplus >= 201701L */
 
 } // end namespace ThreadPool
