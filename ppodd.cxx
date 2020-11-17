@@ -48,7 +48,7 @@ class AnalysisWorker {
 public:
   AnalysisWorker() : fGen(rd()), fRand(0, delay_us) {}
 
-  void run( ThreadPool<Context_t>* pool ) {
+  void run( QueuingThreadPool<Context_t>* pool ) {
     while( Context_t* ctx = pool->GetWorkQueue().next() ) {
 
       // Process all defined analysis objects
@@ -95,8 +95,8 @@ private:
       if( !outp )
         return 1;
       if( compress_output > 0 )
-        outs.push(gzip_compressor());
-      outs.push(outp);
+        outs.push_work(gzip_compressor());
+      outs.push_work(outp);
       return 0;
     }
     void close() {
@@ -133,7 +133,7 @@ public:
 
   ~OutputWorker() = default;
 
-  void run( ThreadPool<Context_t>* pool ) {
+  void run( QueuingThreadPool<Context_t>* pool ) {
     while( Context_t* ctx = pool->GetResultQueue().next() ) {
       fShared->output_mutex.lock();
 
@@ -353,12 +353,12 @@ int main( int argc, char* const* argv )
 
   // Set up nthreads analysis threads. Finished Contexts go into the output queue
   AnalysisWorker<Context> analysisWorker;
-  ThreadPool<Context> pool(nthreads, analysisWorker);
+  QueuingThreadPool<Context> pool(nthreads, analysisWorker);
 
   // Set up output thread(s). Finished Contexts go back into freeQueue
   OutputWorker<Context> outputWorker(odat_file, *freeQueue);
 #ifdef OUTPUT_POOL
-  ThreadPool<Context> out_pool( 1, outputWorker );
+  QueuingThreadPool<Context> out_pool( 1, outputWorker );
 #else
   // Single output thread
   std::thread output(&OutputWorker<Context>::run, outputWorker, &pool);
@@ -402,7 +402,7 @@ int main( int argc, char* const* argv )
       doing_sync = curCtx->IsSyncEvent();
     }
     curCtx->MarkActive();
-    pool.Process(curCtx);
+    pool.push_work(curCtx);
   }
   if( debug > 0 ) {
     cout << "Normal end of file" << endl;
