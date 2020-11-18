@@ -1,73 +1,76 @@
 // A generic QueuingThreadPool implementation
+//
+// This class implements a thread pool operating on two queues. Each thread
+// runs an identical thread worker function. The worker function is part of
+// a configurable "action" object. Each thread holds a separate copy of this
+// object. Data to be processed by the worker function are put in the pool's
+// "work queue" (input queue), from where they are picked up by the next
+// available worker thread. After processing, the data are put in the "result
+// queue" (output queue). The calling program is responsible for adding
+// data objects to the work queue and removing them from the result queue.
+// The worker function must terminate when receiving a nullptr from the
+// work queue.
+//
+// Requires C++17.
+//
 // Ole Hansen <ole@jlab.org> 12-Feb-2015
 //
 // To use this class:
 // (1) Define the type of data each worker thread should process. This can
-//     be a basic type, a structure, a class etc. It should hold the
-//     thread-specific data that are controlled by the controller process
-//     (manager). Example:
+//     be a basic type, a structure, a class etc. Example:
 //
 //     struct Data_t {
 //        int input;
 //        float result;
 //     };
 //
-// (2) Allocate at least as many work data objects as there will be worker
-//     threads. Initialize as necessary. Example:
-//
-//     Data_t workData[16];
-//
-// (3) Add these work data objects to a "free queue". Example:
-//
-//     ThreadUtil::WorkQueue<Data_t> freeQueue;
-//     for( int i=0; i<16; ++i )
-//        freeQueue.add( &workData[i] );
-//
-// (4) Write a worker thread implementation. This is a class that inherits
-//     from ThreadUtil::PoolWorkerThread<Data_t> and implements a run() method.
-//     The run()method should take Data_t items from the fWorkQueue, process
-//     them, and put the processed Data_t items into fResultQueue.
-//     Example:
+// (2) Write a worker thread implementation. This is usually a class (but could
+//     be a free function) that implements a run() method.  The run() method
+//     should take Data_t items from the the pool's work queue, process
+//     them, and put the processed items into pool's result queue.
 //
 //     #include "QueuingThreadPool.hpp"
+//     #include <memory>
 //
 //     template< typename T>
-//     class WorkerThread : public ThreadUtil::PoolWorkerThread<T>
-//     {
+//     class WorkerThread {
 //     public:
-//        WorkerThread( WorkQueue<T>& wq, WorkQueue<T>& fq)
-//        : ThreadUtil::PoolWorkerThread<T>(wq,fq) {}
+//        WorkerThread() = default;
 //     ....
-//     protected:
-//        virtual void run()
+//        void run( ThreadUtil::QueuingThreadPool<T>* pool )
 //        {
-//           while( T* data = this->fWorkQueue.next() ) {
-//           // do something with data (which will a pointer to a Data_t)
-//           // once processed, put the data into the results queue
-//           this->fResultQueue.add(data)
+//           while( auto data = pool->pop_work() ) {
+//             // Do something with data. "data" is a unique_ptr<Data_t>.
+//             data->result = sqrt(data->input);
+//
+//             // Once processed, move the data into the results queue
+//             pool->push_result(std::move(data));
 //        }
 //     ....
+//     // The class may have data members, which must be copyable and movable.
+//     // (Implement copy and move constructors for WorkerThread if necessary.
+//     // Be aware that each thread will hold a copy of these data, so avoid
+//     // large memory allocations.
 //     };
 //
-// (5) Instantiate the thread pool. In the current implementation, the number of
-//     threads is fixed. Example:
-// (5a)
-//     ThreadUtil::QueuingThreadPool<WorkerThread,Data_t> pool(8);
+// (3) Instantiate the thread pool.
 //
-//     or using the freeQueue as the result queue:
-// (5b)
-//     ThreadUtil::QueuingThreadPool<WorkerThread,Data_t> pool(8, freeQueue);
+//     ThreadUtil::QueuingThreadPool<Data_t>
+//         pool( NTHREADS, WorkerThread<Data_t>() );
 //
-// (6) To process data, retrieve a free data object, put input data into it,
-//     and pass it to the pool for processing. Example, using (5b) above:
+// (4) Allocate the data as a unique_ptr<Data_t>. Initialize as necessary.
+//     Example:
 //
-//     for( int i=0; i<10000; ++i ) {
-//        Data_t* d = freeQueue.next();
-//        d->input = i;
-//        pool.push_work(d); // automatically refills freeQueue
-//     }
+//     std::unique_ptr<Data_t> data(new Data_t);
 //
-//     Results should be processed within the WorkerThread objects.
+// (5) Add the data to the pool's work queue. (This would usually be done
+//     inside a loop.)
+//
+//     pool.push_work( std::move(data) );
+//
+// (6) Pick up the processed data from the pool's result queue:
+//
+//     data = pool.pop_result();
 //
 
 #ifndef THREADPOOL_H_
@@ -88,7 +91,8 @@ namespace ThreadUtil {
 // std::unique_ptr<Data_t>. The Data_t ownership is passed back and forth
 // between caller and queue as the unique_ptrs are pushed and popped.
 //
-// Adapted from "C++ Concurrency in Action", 2nd ed., A. Williams, Manning, 2019, ch. 6
+// Adapted from "C++ Concurrency in Action", 2nd ed., A. Williams,
+// Manning, 2019, ch. 6
 template<typename Data_t>
 class WorkQueue {
 public:
