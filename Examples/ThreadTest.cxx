@@ -24,7 +24,7 @@ template<typename Data_t>
 class AnalysisWorker {
 public:
   void run( QueuingThreadPool<Data_t>* pool ) {
-    while( std::unique_ptr<Data_t> datap = pool->pop_work() ) {
+    while( auto ptr = pool->pop_work() ) {
 #ifdef DEBUG
       console_mutex.lock();
       cout << "Thread " << pthread_self()
@@ -33,8 +33,9 @@ public:
 #endif
       int ms = intRand(1,20);
       std::this_thread::sleep_for(std::chrono::milliseconds(ms));
-      *datap *= -10;
-      pool->push_result(std::move(datap));
+      Data_t& data = *ptr;
+      data *= -10;
+      pool->push_result(std::move(ptr));
     }
   }
 };
@@ -46,12 +47,13 @@ public:
           : fResultQueue(resultQueue), fFreeQueue(freeQueue) {}
 
   void run() {
-    while( std::unique_ptr<Data_t> data = fResultQueue.next() ) {
+    while( auto ptr = fResultQueue.next() ) {
+      const Data_t& data = *ptr;
       console_mutex.lock();
-      cout << "data = " << setw(5) << *data << endl << flush;
+      cout << "data = " << setw(5) << data << endl << flush;
       console_mutex.unlock();
-      assert(*data <= 0);
-      fFreeQueue.push(std::move(data));
+      assert(data <= 0);
+      fFreeQueue.push(std::move(ptr));
     }
     console_mutex.lock();
     cout << "Output thread terminating" << endl;
@@ -87,9 +89,10 @@ int main( int /* argc */, const char*[] /* argv */ )
 
   // Add work
   for( size_t i = 0; i < 10000; ++i ) {
-    std::unique_ptr<thread_data_t> datap = freeQueue.next();
-    *datap = i;
-    pool.push_work(std::move(datap));
+    auto ptr = freeQueue.next();
+    thread_data_t& data = *ptr;
+    data = i;
+    pool.push_work(std::move(ptr));
     // push_work() wakes up the analysis workers. The workers then fill the
     // pool's result queue. This in turn triggers action in the output queue.
   }
