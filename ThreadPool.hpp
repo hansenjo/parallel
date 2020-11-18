@@ -84,8 +84,10 @@
 
 namespace ThreadUtil {
 
-// Thread-safe queue with fine-grained locking. Stores raw pointers to the
-// queued objects, which are assumed to be owned by the caller.
+// Thread-safe queue with fine-grained locking. Holds objects of type
+// std::unique_ptr<Data_t>. The Data_t ownership is passed back and forth
+// between caller and queue as the unique_ptrs are pushed and popped.
+//
 // Adapted from "C++ Concurrency in Action", 2nd ed., A. Williams, Manning, 2019, ch. 6
 template<typename Data_t>
 class WorkQueue {
@@ -94,14 +96,17 @@ public:
   WorkQueue( const WorkQueue& ) = delete;
   WorkQueue& operator=( const WorkQueue& ) = delete;
 
+  // Fetch data if available, otherwise return nullptr
   std::unique_ptr<Data_t> try_pop() {
     std::unique_ptr<Node> const old_head = try_pop_head();
-    return old_head ? old_head->data : nullptr;
+    return old_head ? std::move(old_head->data) : nullptr;
   }
+  // Wait until data available, then return it
   std::unique_ptr<Data_t> wait_and_pop() {
     std::unique_ptr<Node> const old_head = wait_pop_head();
     return std::move(old_head->data);
   }
+  // Push data onto the queue
   void push( std::unique_ptr<Data_t> new_data ) {
     std::unique_ptr<Node> p(new Node);
     {
@@ -113,8 +118,7 @@ public:
     }
     data_cond.notify_one();
   }
-
-  // FIXME: old API
+  // Convenience functions
   std::unique_ptr<Data_t> next() { return wait_and_pop(); }
   void add( std::unique_ptr<Data_t> data ) { push(std::move(data)); }
 
@@ -187,12 +191,15 @@ public:
   void push_work( std::unique_ptr<Data_t> data ) {
     fWorkQueue.push(std::move(data));
   }
+  // Fetch data to be processed
   std::unique_ptr<Data_t> pop_work() {
     return fWorkQueue.wait_and_pop();
   }
+  // Queue up processed data
   void push_result( std::unique_ptr<Data_t> data ) {
     fResultQueue->push(std::move(data));
   }
+  // Retrieve processed data
   std::unique_ptr<Data_t> pop_result() {
     return fResultQueue->wait_and_pop();
   }
@@ -204,8 +211,8 @@ public:
   void finish() {
     for( size_t i = 0, e = fThreads.size(); i < e; ++i )
       // The thread worker functions must terminate when
-      // they pick up a nullptr from fWorkQueue.
-      fWorkQueue.push(nullptr);
+      // they pick up a nullptr from the work queue.
+      push_work(nullptr);
     for( auto& t : fThreads )
       t.join();
     fThreads.clear();
