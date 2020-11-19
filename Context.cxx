@@ -10,34 +10,19 @@
 
 using namespace std;
 
-int Context::fgNctx = 0;
 int Context::fgNactive = 0;
-pthread_mutex_t Context::fgMutex;
-pthread_cond_t  Context::fgAllDone;
+std::mutex Context::fgMutex;
+std::condition_variable Context::fgAllDone;
 
-void Context::StaticInit()
+Context::Context()
+  : evbuffer(nullptr), is_init(false), is_active(false)
 {
-  pthread_mutex_init( &fgMutex, 0 );
-  pthread_cond_init( &fgAllDone, 0 );
-}
 
-void Context::StaticCleanup()
-{
-  pthread_mutex_destroy( &fgMutex );
-  pthread_cond_destroy( &fgAllDone );
-}
-
-Context::Context() : evbuffer(0), is_init(false), is_active(false)
-{
-  if( fgNctx == 0 )
-    StaticInit();
-  ++fgNctx;
 }
 
 Context::Context( const Context& )
-  : evbuffer(0), is_init(false), is_active(false)
+  : evbuffer(nullptr), is_init(false), is_active(false)
 {
-  ++fgNctx;
 }
 
 Context::~Context()
@@ -47,10 +32,6 @@ Context::~Context()
   DeleteContainer( detectors );
   DeleteContainer( variables );
   delete [] evbuffer;
-  --fgNctx;
-  assert( fgNctx >= 0 );
-  if( fgNctx == 0 )
-    StaticCleanup();
 }
 
 int Context::Init( const char* odef_file )
@@ -121,29 +102,27 @@ int Context::Init( const char* odef_file )
 void Context::MarkActive()
 {
   is_active = true;
-  pthread_mutex_lock(&fgMutex);
+  std::lock_guard lock(fgMutex);
   ++fgNactive;
-  pthread_mutex_unlock(&fgMutex);
 }
 
 void Context::UnmarkActive()
 {
   is_active = false;
-  pthread_mutex_lock(&fgMutex);
-  --fgNactive;
-  assert( fgNactive >= 0 );
+  {
+    std::lock_guard lock(fgMutex);
+    --fgNactive;
+    assert( fgNactive >= 0 );
+  }
   if( fgNactive == 0 )
-    pthread_cond_signal(&fgAllDone);
-  pthread_mutex_unlock(&fgMutex);
+    fgAllDone.notify_one();
 }
 
 void Context::WaitAllDone()
 {
-  assert( fgNctx > 0 );
-  pthread_mutex_lock(&fgMutex);
+  std::unique_lock lock(fgMutex);
   while( fgNactive > 0 )
-    pthread_cond_wait(&fgAllDone, &fgMutex);
-  pthread_mutex_unlock(&fgMutex);
+    fgAllDone.wait(lock);
 }
 
 bool Context::IsSyncEvent()
