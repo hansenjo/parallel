@@ -6,9 +6,10 @@
 #include "Podd.h"
 #include "Decoder.h"
 #include "Output.h"
-#include "pthread.h"
+#include <thread>
 #include <functional>
 #include <cassert>
+#include <memory>
 
 class Context {
 public:
@@ -46,13 +47,9 @@ public:
   };
 
 private:
-  static pthread_mutex_t fgMutex;
-  static pthread_cond_t  fgAllDone;
+  static std::mutex fgMutex;
+  static std::condition_variable fgAllDone;
   static int fgNactive;
-  static int fgNctx;
-
-  static void StaticInit();
-  static void StaticCleanup();
 
   Context& operator=( const Context& rhs );
 };
