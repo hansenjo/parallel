@@ -49,15 +49,15 @@ public:
   void run() {
     while( auto ptr = fResultQueue.next() ) {
       const Data_t& data = *ptr;
-      console_mutex.lock();
-      cout << "data = " << setw(5) << data << endl << flush;
-      console_mutex.unlock();
+      {
+        std::lock_guard console_lock(console_mutex);
+        cout << "data = " << setw(5) << data << endl << flush;
+      }
       assert(data <= 0);
       fFreeQueue.push(std::move(ptr));
     }
-    console_mutex.lock();
+    std::lock_guard console_lock(console_mutex);
     cout << "Output thread terminating" << endl;
-    console_mutex.unlock();
   }
 private:
   WorkQueue<Data_t>& fResultQueue;

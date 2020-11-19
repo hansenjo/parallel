@@ -15,11 +15,11 @@ public:
   int Load( evbuf_t* evbuffer );
   int Preload( evbuf_t* evbuffer );
 
-  int     GetEvSize()       const { return event.header.event_length; }
-  int     GetNdata( int m ) const;
-  double  GetData( int m, int i ) const;
-  double* GetDataBuf( int m ) const;
-  bool    IsSyncEvent() const;
+  [[nodiscard]] int     GetEvSize()  const { return event.header.event_length; }
+  [[nodiscard]] int     GetNdata( int m ) const;
+  [[nodiscard]] double  GetData( int m, int i ) const;
+  [[nodiscard]] double* GetDataBuf( int m ) const;
+  [[nodiscard]] bool    IsSyncEvent() const;
 
 private:
   Event event;

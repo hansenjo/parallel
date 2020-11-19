@@ -22,7 +22,7 @@ void Variable::Print() const
 // Declared in Podd.h
 void PrintVarList( varlst_t& varlst )
 {
-  for( varlst_t::iterator it = varlst.begin(); it != varlst.end(); ++it ) {
-    (*it)->Print();
+  for( auto & it : varlst ) {
+    it->Print();
   }
 }

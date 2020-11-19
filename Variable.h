@@ -9,9 +9,9 @@ class Variable {
 public:
   Variable( const char* name, const char* note, const double* loc );
 
-  const std::string& GetName() const { return name; }
-  const std::string& GetNote() const { return note; }
-  double GetValue() const { return *loc; }
+  [[nodiscard]] const std::string& GetName() const { return name; }
+  [[nodiscard]] const std::string& GetNote() const { return note; }
+  [[nodiscard]] double GetValue() const { return *loc; }
   void Print() const;
 
 private:

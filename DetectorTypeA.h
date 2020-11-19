@@ -15,7 +15,7 @@ public:
   virtual ~DetectorTypeA();
 
   virtual void Clear();
-  virtual Detector* Clone() const;
+  [[nodiscard]] virtual Detector* Clone() const;
   virtual int  Decode( Decoder& evdata );
   virtual int  Analyze();
   virtual void Print() const;

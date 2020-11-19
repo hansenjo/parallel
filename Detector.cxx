@@ -9,7 +9,7 @@
 using namespace std;
 
 Detector::Detector( const char* _name, int _imod )
-  : name(_name), type("--baseclass--"), imod(_imod-1), fVars(0)
+  : name(_name), type("--baseclass--"), imod(_imod-1), fVars(nullptr)
 {
   if( imod<0 ) {
     cerr << "\"" << name << "\": "
@@ -83,7 +83,7 @@ int DefineVarsFromList( VarDef_t* defs, const char* prefix,
       varname.append(".");
     }
     varname.append(def->name);
-    varlst_t::iterator it = varlst->begin();
+    auto it = varlst->begin();
     for( ; it != varlst->end(); ++it ) {
       if( (*it)->GetName() == varname ) {
 	break;

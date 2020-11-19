@@ -7,7 +7,7 @@ using namespace std;
 
 const string& PlainVariable::GetName() const
 {
-  static const string nullstr("");
+  static const string nullstr;
   if( !fVar ) return nullstr;
   return fVar->GetName();
 }

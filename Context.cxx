@@ -40,13 +40,12 @@ int Context::Init( const char* odef_file )
 
   DeleteContainer(outvars);
   DeleteContainer(variables);
-  delete [] evbuffer; evbuffer = 0;
+  delete [] evbuffer; evbuffer = nullptr;
 
   // Initialize detectors
   int err = 0;
-  for( detlst_t::iterator it = detectors.begin(); it != detectors.end(); ++it ) {
+  for(auto* det : detectors) {
     int status;
-    Detector* det = *it;
     det->SetVarList(variables);
     if( (status = det->Init()) != 0 ) {
       err = status;
@@ -77,9 +76,7 @@ int Context::Init( const char* odef_file )
     pos = line.find_first_of(" \t");
     if( pos != string::npos )
       line.erase(pos);
-    for( varlst_t::const_iterator it = variables.begin();
-	 it != variables.end(); ++it ) {
-      Variable* var = *it;
+    for( auto *var : variables ) {
       if( WildcardMatch(var->GetName(), line) )
 	outvars.push_back( new PlainVariable(var) );
     }
