@@ -24,7 +24,7 @@ int Decoder::Load( evbuf_t* evbuffer )
   Clear();
 
   char* evtp = ((char*)evbuffer)+sizeof(event.header);
-  int ndet = (event.header.event_info & 0xFFFF);
+  int ndet = static_cast<int>(event.header.event_info & 0xFFFFU);
   for( int i = 0; i < ndet; ++i ) {
     auto* m = (ModuleData*)evtp;
     if( !m )
@@ -52,5 +52,5 @@ int Decoder::Preload( evbuf_t* evbuffer )
 
 bool Decoder::IsSyncEvent() const
 {
-  return ((event.header.event_info & 0x10000) != 0);
+  return ((event.header.event_info & 0x10000U) != 0);
 }

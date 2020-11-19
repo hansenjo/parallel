@@ -3,7 +3,6 @@
 #include "Podd.h"
 #include "DetectorTypeA.h"
 #include "Decoder.h"
-#include <iostream>
 #include <cmath>
 
 using namespace std;
@@ -48,11 +47,9 @@ int DetectorTypeA::Analyze()
 {
   // This detector type computes some basic statistics of the raw data
 
-  typedef vector<double> vec_t;
   if( !data.empty() ) {
-    double n = double(data.size());
-    for( vec_t::size_type i = 0; i < data.size(); ++i ) {
-      double x = data[i];
+    auto n = double(data.size());
+    for( double x : data ) {
       sum += x;
       if( x < min ) min = x;
       if( x > max ) max = x;

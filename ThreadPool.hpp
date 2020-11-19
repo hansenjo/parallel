@@ -111,7 +111,7 @@ public:
     return std::move(old_head->data);
   }
   // Push data onto the queue
-  void push( std::unique_ptr<Data_t> new_data ) {
+  void push( std::unique_ptr<Data_t>&& new_data ) {
     std::unique_ptr<Node> p(new Node);
     {
       std::lock_guard<std::mutex> tail_lock(tail_mutex);
@@ -124,7 +124,7 @@ public:
   }
   // Convenience functions
   std::unique_ptr<Data_t> next() { return wait_and_pop(); }
-  void add( std::unique_ptr<Data_t> data ) { push(std::move(data)); }
+  void add( std::unique_ptr<Data_t>&& data ) { push(std::move(data)); }
 
 private:
   struct Node {

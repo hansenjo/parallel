@@ -7,7 +7,7 @@ using namespace std;
 
 const int BUFSIZE = 1024;
 
-DataFile::DataFile( const char* fname ) : filename(fname), filep(0)
+DataFile::DataFile( const char* fname ) : filename(fname), filep(nullptr)
 {
   // Constructor
 
@@ -41,7 +41,7 @@ int DataFile::Close()
 {
   if( filep ) {
     fclose(filep);
-    filep = 0;
+    filep = nullptr;
   }
   return 0;
 }
