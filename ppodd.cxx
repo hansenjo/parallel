@@ -14,7 +14,7 @@
 #include <climits>
 #include <unistd.h>
 #include <algorithm>  // for std::swap
-#include <set>
+#include <map>
 #include <memory>
 #include <thread>
 #include <chrono>
@@ -43,44 +43,45 @@ static bool order_events = false;
 static bool allow_sync_events = false;
 static random_device rd;
 
+// Thread-safe random number generator
+int intRand(int min, int max) {
+  thread_local minstd_rand generator(rd());
+  uniform_int_distribution<int> distribution(min, max);
+  return distribution(generator);
+}
+
 template<typename Context_t>
 class AnalysisWorker {
 public:
-  AnalysisWorker() : fGen(rd()), fRand(0, delay_us) {}
-
   void run( QueuingThreadPool<Context_t>* pool ) {
-    while( Context_t* ctx = pool->GetWorkQueue().next() ) {
+    while( auto ptr = pool->pop_work() ) {
+      Context_t& ctx = *ptr;
 
       // Process all defined analysis objects
-
-      int status = ctx->evdata.Load(ctx->evbuffer);
+      int status = ctx.evdata.Load(ctx.evbuffer);
       if( status != 0 ) {
         cerr << "Decoding error = " << status
-             << " at event " << ctx->nev << endl;
+             << " at event " << ctx.nev << endl;
         goto skip;
       }
-      for( auto it = ctx->detectors.begin();
-           it != ctx->detectors.end(); ++it ) {
-        Detector* det = *it;
-
+      for( auto det : ctx.detectors ) {
         det->Clear();
-        if( det->Decode(ctx->evdata) != 0 )
+        if( det->Decode(ctx.evdata) != 0 )
           goto skip;
         if( det->Analyze() != 0 )
           goto skip;
       }
 
       // If requested, add random delay
-      if( delay_us > 0 )
-        std::this_thread::sleep_for(std::chrono::microseconds(2 * fRand(fGen)));
+      if( delay_us > 0 ) {
+        int us = intRand(0, delay_us);
+        std::this_thread::sleep_for(std::chrono::microseconds(2 * us));
+      }
 
-      skip: //TODO: add error status to context, let output skip bad results
-      pool->GetResultQueue().add(ctx);
+     skip: //TODO: add error status to context, let output skip bad results
+      pool->push_result(std::move(ptr));
     }
   }
-private:
-  minstd_rand fGen;
-  uniform_int_distribution<int> fRand;
 };
 
 template<typename Context_t>
@@ -95,8 +96,8 @@ private:
       if( !outp )
         return 1;
       if( compress_output > 0 )
-        outs.push_work(gzip_compressor());
-      outs.push_work(outp);
+        outs.push(gzip_compressor());
+      outs.push(outp);
       return 0;
     }
     void close() {
@@ -107,77 +108,80 @@ private:
     ofstream outp;
     ostrm_t outs;
     bool fHeaderWritten;
-    int fLastWritten;
+    size_t fLastWritten;
   };
 
-  shared_ptr<SharedData> fShared;
-  // Queue for finished contexts (shared data too, but already thread-safe)
-  WorkQueue<Context_t>* fFreeQueue;
-  // Per-thread work data
-  std::set<Context_t*, typename Context_t::SeqLess> fBuffer;
+  // Singleton shared data blob
+  static inline SharedData fShared {};
+
+  // Queue for finished contexts
+  WorkQueue<Context_t>& fFreeQueue;
+  // Temporary storage for event ordering
+  std::map<size_t, std::unique_ptr<Context_t>> fBuffer;
 
 public:
   OutputWorker( const string& odat_file, WorkQueue<Context_t>& freeQueue )
-          : fShared(make_shared<SharedData>()), fFreeQueue(&freeQueue) {
+          : fFreeQueue(freeQueue) {
     // Open output file and set up filter chain
-    if( fShared->open(odat_file) != 0 ) {
+    if( fShared.open(odat_file) != 0 ) {
       cerr << "Error opening output data file " << odat_file << endl;
       return; // TODO: throw exception
     }
   }
 
   OutputWorker( const OutputWorker& rhs )
-          : fShared(rhs.fShared), fFreeQueue(rhs.fFreeQueue), fBuffer{} {
+          : fFreeQueue(rhs.fFreeQueue), fBuffer{} {
     // Copy constructor. Called when used in std::thread
   }
 
   ~OutputWorker() = default;
 
   void run( QueuingThreadPool<Context_t>* pool ) {
-    while( Context_t* ctx = pool->GetResultQueue().next() ) {
-      fShared->output_mutex.lock();
+    while( auto ctxPtr = pool->pop_result() ) {
+      Context_t& ctx = *ctxPtr;
+      ofstream& outp = fShared.outp;
+      ostrm_t& outs = fShared.outs;
 
-      ofstream& outp = fShared->outp;
-      ostrm_t& outs = fShared->outs;
+      std::lock_guard output_lock(fShared.output_mutex);
       if( !outp.good() || !outs.good() )
         // TODO: handle errors properly
         goto skip;
 
-      if( !fShared->fHeaderWritten ) {
-        WriteHeader(outs, ctx);
-        fShared->fHeaderWritten = true;
+      if( !fShared.fHeaderWritten ) {
+        WriteHeader(outs, ctxPtr.get());
+        fShared.fHeaderWritten = true;
       }
       if( order_events ) {
         // Wait for next event in sequence before writing
         // FIXME: I don't think this works with > 1 thread
-        int& last_written = fShared->fLastWritten;
-        if( ctx->iseq == last_written + 1 ) {
-          WriteEvent(outs, ctx);
+        auto& last_written = fShared.fLastWritten;
+        if( ctx.iseq == last_written + 1 ) {
+          WriteEvent(outs, ctxPtr.get());
           ++last_written;
-          ctx->UnmarkActive();
-          fFreeQueue->add(ctx);
+          ctx.UnmarkActive();
+          fFreeQueue.push(std::move(ctxPtr));
           // Check if some or all of the buffer can be written now, too
           for( auto it = fBuffer.begin(), jt = it;
-               it != fBuffer.end() && (*it)->iseq == last_written + 1; it = jt ) {
+               it != fBuffer.end() && (*it).first == last_written + 1; it = jt ) {
             ++jt;
-            WriteEvent(outs, *it);
+            auto bufCtxPtr = std::move( (*it).second );
+            WriteEvent(outs, bufCtxPtr.get());
             ++last_written;
-            (*it)->UnmarkActive();
-            fFreeQueue->add(*it);
+            bufCtxPtr->UnmarkActive();
+            fFreeQueue.push( std::move(bufCtxPtr) );
             fBuffer.erase(it);
           }
         } else {
           // Buffer out-of-order events, sorted by iseq
-          fBuffer.insert(ctx);
+          fBuffer.emplace(ctx.iseq, std::move(ctxPtr));
           //TODO: error check
           //TODO: deal with skipped events!
         }
       } else {
-        WriteEvent(outs, ctx);
-        skip:
-        fShared->output_mutex.unlock();
-        ctx->UnmarkActive();
-        fFreeQueue->add(ctx);
+        WriteEvent(outs, ctxPtr.get());
+       skip:
+        ctx.UnmarkActive();
+        fFreeQueue.push( std::move(ctxPtr) );
       }
     }
   }
@@ -253,7 +257,7 @@ int main( int argc, char* const* argv )
   int opt;
   bool mark = false;
   string input_file, odef_file, odat_file;
-  int nthreads = 0;
+  unsigned int nthreads = 0;
 
   prgname = argv[0];
   if( prgname.size() >= 2 && prgname.substr(0, 2) == "./" )
@@ -273,8 +277,14 @@ int main( int argc, char* const* argv )
       case 'o':
         odat_file = optarg;
         break;
-      case 't':
-        nthreads = atoi(optarg);
+      case 't': {
+        int i =  atoi(optarg);
+        if( i > 0 )
+          nthreads = i;
+        else
+          cerr << "Invalid number of threads specified: " << i
+               << ", assuming 1";
+        }
         break;
       case 'y':
         delay_us = atoi(optarg);
@@ -332,18 +342,18 @@ int main( int argc, char* const* argv )
 
   // Set up thread contexts. Copy analysis objects.
   unsigned int ncpu = GetThreadCount();
-  if( nthreads <= 0 || nthreads > (int) ncpu - 1 )
+  if( nthreads == 0 || nthreads > ncpu - 1 )
     nthreads = (ncpu > 1) ? ncpu - 1 : 1;
   if( debug > 0 )
     cout << "Initializing " << nthreads << " analysis threads" << endl;
 
-  vector<Context> contexts(nthreads);
   using Queue_t = WorkQueue<Context>;
-  shared_ptr<Queue_t> freeQueue = make_shared<Queue_t>();
-  for( auto& ctx : contexts ) {
+  Queue_t freeQueue;
+  for( unsigned int i=0; i<nthreads; ++i ) {
     // Deep copy of container objects
-    CopyContainer(gDets, ctx.detectors);
-    freeQueue->add(&ctx);
+    std::unique_ptr<Context> ctx(new Context);
+    CopyContainer(gDets, ctx->detectors);
+    freeQueue.push( std::move(ctx) );
   }
 
   // Configure output
@@ -356,15 +366,15 @@ int main( int argc, char* const* argv )
   QueuingThreadPool<Context> pool(nthreads, analysisWorker);
 
   // Set up output thread(s). Finished Contexts go back into freeQueue
-  OutputWorker<Context> outputWorker(odat_file, *freeQueue);
 #ifdef OUTPUT_POOL
   QueuingThreadPool<Context> out_pool( 1, outputWorker );
 #else
   // Single output thread
-  std::thread output(&OutputWorker<Context>::run, outputWorker, &pool);
+  std::thread output(&OutputWorker<Context>::run,
+                     OutputWorker<Context>(odat_file, freeQueue), &pool);
 #endif
 
-  unsigned long nev = 0;
+  size_t nev = 0;
   bool doing_sync = false;
   if( debug > 0 )
     cout << "Starting event loop, nev_max = " << nev_max << endl;
@@ -378,31 +388,32 @@ int main( int argc, char* const* argv )
     if( debug > 1 )
       cout << "Event " << nev << endl;
 
-    Context* curCtx = freeQueue->next();
+    auto ctxPtr = freeQueue.next();
+    Context& ctx = *ctxPtr;
     // Init if necessary
     //TODO: split up Init:
     // (1) Read database and all other related things, do before cloning
     //     detectors
     // (2) DefineVariables: do in threads
-    if( !curCtx->is_init ) {
-      if( curCtx->Init(odef_file.c_str()) != 0 )
+    if( !ctx.is_init ) {
+      if( ctx.Init(odef_file.c_str()) != 0 )
         break;
     }
 
-    swap(curCtx->evbuffer, inp.GetEvBuffer());
-    curCtx->nev = nev;
+    swap(ctx.evbuffer, inp.GetEvBuffer());
+    ctx.nev = nev;
     // Sequence number for event ordering. These must be consecutive
-    curCtx->iseq = nev;
+    ctx.iseq = nev;
 
     // Synchronize the event stream at sync events (e.g. scalers).
     // All events before sync events will be processed, followed by
     // the sync event(s), then normal processing resumes.
-    if( allow_sync_events && (curCtx->IsSyncEvent() || doing_sync) ) {
-      curCtx->WaitAllDone();
-      doing_sync = curCtx->IsSyncEvent();
+    if( allow_sync_events && (ctx.IsSyncEvent() || doing_sync) ) {
+      ctx.WaitAllDone();
+      doing_sync = ctx.IsSyncEvent();
     }
-    curCtx->MarkActive();
-    pool.push_work(curCtx);
+    ctx.MarkActive();
+    pool.push_work(std::move(ctxPtr));
   }
   if( debug > 0 ) {
     cout << "Normal end of file" << endl;
@@ -418,7 +429,7 @@ int main( int argc, char* const* argv )
   out_pool.finish();
 #else
   // Terminate single output thread
-  pool.GetResultQueue().add(nullptr);
+  pool.push_result(nullptr);
   output.join();
 #endif
 
