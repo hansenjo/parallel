@@ -15,7 +15,7 @@ public:
   explicit DataFile( const char* filename = "" );
   ~DataFile();
 
-  bool      IsOpen() { return (filep != 0); }
+  bool      IsOpen() { return (filep != nullptr); }
   int       Open( const char* filename = "" );
   int       ReadEvent();
   int       Close();

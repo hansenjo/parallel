@@ -54,8 +54,8 @@ template<typename Context_t>
 class AnalysisWorker {
 public:
   void run( QueuingThreadPool<Context_t>* pool ) {
-    while( auto ptr = pool->pop_work() ) {
-      Context_t& ctx = *ptr;
+    while( auto ctxPtr = pool->pop_work() ) {
+      Context_t& ctx = *ctxPtr;
 
       // Process all defined analysis objects
       int status = ctx.evdata.Load(ctx.evbuffer);
@@ -79,7 +79,7 @@ public:
       }
 
      skip: //TODO: add error status to context, let output skip bad results
-      pool->push_result(std::move(ptr));
+      pool->push_result( std::move(ctxPtr) );
     }
   }
 };

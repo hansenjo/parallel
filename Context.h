@@ -46,7 +46,7 @@ private:
   static int fgNactive;
 #endif
 
-  Context& operator=( const Context& rhs );
+  Context& operator=( const Context& rhs ) = delete;
 };
 
 #endif
