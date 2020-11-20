@@ -25,15 +25,16 @@ class AnalysisWorker {
 public:
   void run( QueuingThreadPool<Data_t>* pool ) {
     while( auto ptr = pool->pop_work() ) {
-#ifdef DEBUG
-      console_mutex.lock();
-      cout << "Thread " << pthread_self()
-           << ", data = " << setw(5) << *data << endl << flush;
-      console_mutex.unlock();
-#endif
-      int ms = intRand(1,20);
-      std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+      int us = intRand(0,10);
+      std::this_thread::sleep_for(std::chrono::microseconds(us));
       Data_t& data = *ptr;
+#ifdef DEBUG
+      {
+        lock_guard lock(console_mutex);
+        cout << "Thread " << std::this_thread::get_id()
+             << ", data = " << setw(5) << data << endl << flush;
+      }
+#endif
       data *= -10;
       pool->push_result(std::move(ptr));
     }
@@ -50,8 +51,10 @@ public:
     while( auto ptr = fResultQueue.next() ) {
       const Data_t& data = *ptr;
       {
-        std::lock_guard console_lock(console_mutex);
-        cout << "data = " << setw(5) << data << endl << flush;
+        if( (data % -1000) == 0 ) {
+          std::lock_guard console_lock(console_mutex);
+          cout << "data = " << setw(5) << data << endl << flush;
+        }
       }
       assert(data <= 0);
       fFreeQueue.push(std::move(ptr));
