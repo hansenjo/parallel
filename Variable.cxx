@@ -7,8 +7,8 @@
 
 using namespace std;
 
-Variable::Variable( const char* _name, const char* _note, const double* _loc )
-  : name(_name), note(_note), loc(_loc)
+Variable::Variable( string _name, string _note, const double* _loc )
+  : name(move(_name)), note(move(_note)), loc(_loc)
 {
   assert(loc);
 }
@@ -22,7 +22,5 @@ void Variable::Print() const
 // Declared in Podd.h
 void PrintVarList( varlst_t& varlst )
 {
-  for( auto & it : varlst ) {
-    it->Print();
-  }
+  for_each( ALL(varlst), [](auto& var){ var->Print(); });
 }

@@ -7,7 +7,7 @@
 
 class Variable {
 public:
-  Variable( const char* name, const char* note, const double* loc );
+  Variable( std::string name, std::string note, const double* loc );
 
   [[nodiscard]] const std::string& GetName() const { return name; }
   [[nodiscard]] const std::string& GetNote() const { return note; }
@@ -18,7 +18,6 @@ private:
   std::string name;
   std::string note;
   const double* loc;
-
 };
 
 #endif

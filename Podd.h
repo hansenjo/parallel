@@ -6,6 +6,7 @@
 #include <vector>
 #include <list>
 #include <memory>
+#include <string>
 
 class Variable;
 class Detector;
@@ -15,17 +16,19 @@ using detlst_t = std::vector<std::unique_ptr<Detector>>;
 
 extern int debug;
 
-// Non-class specific functions
 struct VarDef_t {
-  const char* name;
-  const char* note;
+  std::string name;
+  std::string note;
   const double* loc;
 };
 enum { kDefine = false, kRemove = true };
 
-int DefineVarsFromList( VarDef_t* defs, const char* prefix,
-			varlst_t* varlst, bool remove = false );
+int DefineVarsFromList( const std::vector<VarDef_t>& defs,
+                        const std::string& prefix,
+                        varlst_t& varlst, bool remove = false );
 
 void PrintVarList( varlst_t& varlst );
+
+#define ALL(c) (c).begin(), (c).end()
 
 #endif

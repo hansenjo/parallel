@@ -7,7 +7,8 @@
 
 using namespace std;
 
-DetectorTypeB::DetectorTypeB( const char* name, int imod ) : Detector(name,imod)
+DetectorTypeB::DetectorTypeB( const std::string& name, int imod )
+  : Detector(name, imod)
 {
   type = "B";
 }
@@ -75,16 +76,17 @@ void DetectorTypeB::Print() const
 
 int DetectorTypeB::DefineVariables( bool do_remove )
 {
-  VarDef_t defs[] = {
-    { "slope", "Slope",                &slope },
-    { "inter", "Intercept",            &inter },
-    { "cov11", "Error^2 in slope",     &cov11 },
-    { "cov22", "Error^2 in intercept", &cov22 },
-    { "cov12", "Correlation coeff",    &cov12 },
-    { "ndof",  "Degrees of freedom",   &ndof },
-    { "chi2",  "Chi2",                 &chi2 },
-    { 0 }
-  };
-  DefineVarsFromList( defs, GetName().c_str(), fVars, do_remove );
+  if( fVars ) {
+    const vector<VarDef_t> defs = {
+            {"slope", "Slope",                &slope},
+            {"inter", "Intercept",            &inter},
+            {"cov11", "Error^2 in slope",     &cov11},
+            {"cov22", "Error^2 in intercept", &cov22},
+            {"cov12", "Correlation coeff",    &cov12},
+            {"ndof",  "Degrees of freedom",   &ndof},
+            {"chi2",  "Chi2",                 &chi2}
+    };
+    DefineVarsFromList(defs, GetName(), *fVars, do_remove);
+  }
   return 0;
 }
