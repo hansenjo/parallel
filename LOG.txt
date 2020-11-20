@@ -80,8 +80,8 @@ Move the large *.dat and *.odat files to /aonl4/work1/ole/parallel/
 ======
 Some ideas from "C++ Concurrency in Action", 2nd ed.
 
-shared_ptr in WorkQueue?
-try_pop in WorkQueue?
+shared_ptr in ConcurrentQueue?
+try_pop in ConcurrentQueue?
 end_of_data member in QueuingThreadPool, use it to end threads
   (not optimal since the thread function isn't controlled by QueuingThreadPool)
 Run both analysis and output threads in the same thread pool?
