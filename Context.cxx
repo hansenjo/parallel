@@ -10,10 +10,6 @@
 
 using namespace std;
 
-int Context::fgNactive = 0;
-std::mutex Context::fgMutex;
-std::condition_variable Context::fgAllDone;
-
 Context::Context()
   : evbuffer(nullptr), is_init(false), is_active(false)
 {
@@ -96,6 +92,11 @@ int Context::Init( const char* odef_file )
   return 0;
 }
 
+#ifdef EVTORDER
+int Context::fgNactive = 0;
+std::mutex Context::fgMutex;
+std::condition_variable Context::fgAllDone;
+
 void Context::MarkActive()
 {
   is_active = true;
@@ -127,3 +128,4 @@ bool Context::IsSyncEvent()
   evdata.Preload( evbuffer );
   return evdata.IsSyncEvent();
 }
+#endif
