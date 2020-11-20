@@ -1,6 +1,7 @@
 cmake_minimum_required (VERSION 3.8)   # Need >= 3.8 for C++17 support 
 
 project(ppodd CXX)
+option(PPODD_EVTORDER "Build event ordering code" OFF)
 
 set(PPODD ppodd)
 set(PSRC DataFile.cxx Decoder.cxx Variable.cxx Detector.cxx
@@ -24,6 +25,9 @@ set_target_properties(${PPODD}
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
 )
+if(PPODD_EVTORDER)
+  target_compile_definitions(${PPODD} PRIVATE EVTORDER)
+endif()
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
