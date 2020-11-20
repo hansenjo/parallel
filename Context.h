@@ -26,7 +26,7 @@ public:
 #endif
 
   // Per-thread data
-  evbuf_t*  evbuffer;    // Event buffer read from file
+  evbuf_ptr_t evbuffer;  // Event buffer read from file
   Decoder   evdata;      // Decoded data
   detlst_t  detectors;   // Detectors with private event-by-event data
   varlst_t  variables;   // Interface to analysis results
@@ -36,8 +36,6 @@ public:
   //int       id;          // This thread's ID
   bool      is_init;     // Init() called successfully
   bool      is_active;
-
-  static const int INIT_EVSIZE = 1024;
 
 private:
 #ifdef EVTORDER

@@ -11,13 +11,12 @@
 using namespace std;
 
 Context::Context()
-  : evbuffer(nullptr), is_init(false), is_active(false)
+  : is_init(false), is_active(false)
 {
-
 }
 
 Context::Context( const Context& )
-  : evbuffer(nullptr), is_init(false), is_active(false)
+  : is_init(false), is_active(false)
 {
 }
 
@@ -27,7 +26,6 @@ Context::~Context()
   DeleteContainer( outvars );
   DeleteContainer( detectors );
   DeleteContainer( variables );
-  delete [] evbuffer;
 }
 
 int Context::Init( const char* odef_file )
@@ -36,7 +34,6 @@ int Context::Init( const char* odef_file )
 
   DeleteContainer(outvars);
   DeleteContainer(variables);
-  delete [] evbuffer; evbuffer = nullptr;
 
   // Initialize detectors
   int err = 0;
@@ -85,7 +82,8 @@ int Context::Init( const char* odef_file )
     return 3;
   }
 
-  evbuffer = new evbuf_t[INIT_EVSIZE];
+  if( !evbuffer )
+    evbuffer = make_unique<evbuf_t[]>(MAX_EVTSIZE);
   evbuffer[0] = 0;
 
   is_init = true;
@@ -125,7 +123,7 @@ void Context::WaitAllDone()
 
 bool Context::IsSyncEvent()
 {
-  evdata.Preload( evbuffer );
+  evdata.Preload( evbuffer.get() );
   return evdata.IsSyncEvent();
 }
 #endif

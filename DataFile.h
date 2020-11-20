@@ -8,7 +8,9 @@
 #include <cstdio>
 #include <string>
 
-typedef uint32_t evbuf_t;
+using evbuf_t = uint32_t;
+using evbuf_ptr_t = std::unique_ptr<evbuf_t[]>;
+static const int MAX_EVTSIZE = 1024;
 
 class DataFile {
 public:
@@ -20,8 +22,8 @@ public:
   int       ReadEvent();
   int       Close();
 
-  [[nodiscard]] evbuf_t*  GetEvBuffer() const { return buffer; }
-  [[nodiscard]] evbuf_t*& GetEvBuffer()       { return buffer; }
+  [[nodiscard]] evbuf_t*  GetEvBufPtr() const { return buffer.get(); }
+  [[nodiscard]] evbuf_ptr_t& GetEvBuffer()    { return buffer; }
   [[nodiscard]] evbuf_t   GetEvSize()   const { return buffer[0]; }
   [[nodiscard]] size_t    GetEvWords()  const { return GetEvSize()/sizeof(evbuf_t); }
 
@@ -29,7 +31,7 @@ private:
 
   std::string filename;
   FILE*       filep;
-  evbuf_t*    buffer;   // Buffer for current event
+  evbuf_ptr_t buffer;   // Buffer for current event
 };
 
 #endif

@@ -1,7 +1,6 @@
 // Interface for reading a data file for parallelization test
 
 #include "Decoder.h"
-#include <iostream>
 #include <cstring>  // for memset, memcpy
 
 using namespace std;
