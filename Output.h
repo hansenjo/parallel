@@ -8,8 +8,9 @@
 #include <boost/iostreams/filtering_stream.hpp>
 #include <string>
 #include <vector>
+#include <memory>
 
-typedef boost::iostreams::filtering_ostream ostrm_t;
+using ostrm_t = boost::iostreams::filtering_ostream;
 
 class OutputElement {
 public:
@@ -46,6 +47,6 @@ private:
   const int& fNev;
 };
 
-typedef std::vector<OutputElement*> voutp_t;
+using voutp_t = std::vector<std::unique_ptr<OutputElement>>;
 
 #endif

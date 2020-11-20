@@ -5,12 +5,13 @@
 
 #include <vector>
 #include <list>
+#include <memory>
 
 class Variable;
 class Detector;
 
-typedef std::list<Variable*> varlst_t;
-typedef std::vector<Detector*> detlst_t;
+using varlst_t = std::list<std::unique_ptr<Variable>>;
+using detlst_t = std::vector<std::unique_ptr<Detector>>;
 
 extern int debug;
 
