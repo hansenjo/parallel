@@ -239,7 +239,7 @@ static void usage() {
        << " (default = input_file.odat)" << endl
        << " [ -d debug_level ]\tset debug level" << endl
        << " [ -n nev_max ]\t\tset max number of events" << endl
-       << " [ -t nthreads ]\tcreate at most nthreads (default = n_cpus)" << endl
+       << " [ -j nthreads ]\tcreate at most nthreads (default = n_cpus)" << endl
        << " [ -y us ]\t\tAdd us microseconds average random delay per event" << endl
 #ifdef EVTORDER
        << " [ -e (sync|strict) ]\tPreserve event order" << endl
@@ -263,7 +263,7 @@ int main( int argc, char* const* argv )
   if( prgname.size() >= 2 && prgname.substr(0, 2) == "./" )
     prgname.erase(0, 2);
 
-  while( (opt = getopt(argc, argv, "c:d:n:o:t:y:e:zmh")) != -1 ) {
+  while( (opt = getopt(argc, argv, "c:d:n:o:j:y:e:zmh")) != -1 ) {
     switch( opt ) {
       case 'c':
         odef_file = optarg;
@@ -277,13 +277,15 @@ int main( int argc, char* const* argv )
       case 'o':
         odat_file = optarg;
         break;
-      case 't': {
+      case 'j': {
         int i =  atoi(optarg);
         if( i > 0 )
           nthreads = i;
-        else
+        else {
           cerr << "Invalid number of threads specified: " << i
                << ", assuming 1";
+          nthreads = 1;
+          }
         }
         break;
       case 'y':
@@ -343,9 +345,11 @@ int main( int argc, char* const* argv )
   //   PrintVarList(gVars);
 
   // Set up thread contexts. Copy analysis objects.
-  unsigned int ncpu = GetThreadCount();
-  if( nthreads == 0 || nthreads > ncpu - 1 )
-    nthreads = (ncpu > 1) ? ncpu - 1 : 1;
+  unsigned int ncores = GetThreadCount();
+  if( nthreads > 2*ncores )
+    nthreads = 2*ncores;
+  if( nthreads == 0 )
+    nthreads = (ncores > 1) ? ncores - 1 : 1;
   if( debug > 0 )
     cout << "Initializing " << nthreads << " analysis threads" << endl;
 
