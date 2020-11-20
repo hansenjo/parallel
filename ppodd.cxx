@@ -138,7 +138,9 @@ public:
 
   void run( QueuingThreadPool<Context_t>* pool ) {
     while( auto ctxPtr = pool->pop_result() ) {
+#ifdef EVTORDER
       Context_t& ctx = *ctxPtr;
+#endif
       ofstream& outp = fShared.outp;
       ostrm_t& outs = fShared.outs;
 
@@ -151,6 +153,7 @@ public:
         WriteHeader(outs, ctxPtr.get());
         fShared.fHeaderWritten = true;
       }
+#ifdef EVTORDER
       if( order_events ) {
         // Wait for next event in sequence before writing
         // FIXME: I don't think this works with > 1 thread
@@ -177,10 +180,14 @@ public:
           //TODO: error check
           //TODO: deal with skipped events!
         }
-      } else {
+      } else
+#endif
+      {
         WriteEvent(outs, ctxPtr.get());
        skip:
+#ifdef EVTORDER
         ctx.UnmarkActive();
+#endif
         fFreeQueue.push( std::move(ctxPtr) );
       }
     }
@@ -243,7 +250,9 @@ static void usage() {
        << " [ -n nev_max ]\t\tset max number of events" << endl
        << " [ -t nthreads ]\tcreate at most nthreads (default = n_cpus)" << endl
        << " [ -y us ]\t\tAdd us microseconds average random delay per event" << endl
+#ifdef EVTORDER
        << " [ -e (sync|strict) ]\tPreserve event order" << endl
+#endif
        << " [ -m ]\t\t\tMark progress" << endl
        << " [ -z ]\t\t\tCompress output with gzip" << endl
        << " [ -h ]\t\t\tPrint this help message" << endl;
@@ -289,6 +298,7 @@ int main( int argc, char* const* argv )
       case 'y':
         delay_us = atoi(optarg);
         break;
+#ifdef EVTORDER
       case 'e':
         if( optarg && !strcmp(optarg, "strict") ) {
           order_events = true;
@@ -299,6 +309,7 @@ int main( int argc, char* const* argv )
           usage();
         }
         break;
+#endif
       case 'z':
         compress_output = 1;
         break;
@@ -374,8 +385,10 @@ int main( int argc, char* const* argv )
                      OutputWorker<Context>(odat_file, freeQueue), &pool);
 #endif
 
-  size_t nev = 0;
+#ifdef EVTORDER
   bool doing_sync = false;
+#endif
+  size_t nev = 0;
   if( debug > 0 )
     cout << "Starting event loop, nev_max = " << nev_max << endl;
 
@@ -405,6 +418,7 @@ int main( int argc, char* const* argv )
     // Sequence number for event ordering. These must be consecutive
     ctx.iseq = nev;
 
+#ifdef EVTORDER
     // Synchronize the event stream at sync events (e.g. scalers).
     // All events before sync events will be processed, followed by
     // the sync event(s), then normal processing resumes.
@@ -413,6 +427,7 @@ int main( int argc, char* const* argv )
       doing_sync = ctx.IsSyncEvent();
     }
     ctx.MarkActive();
+#endif
     pool.push_work(std::move(ctxPtr));
   }
   if( debug > 0 ) {

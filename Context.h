@@ -18,10 +18,12 @@ public:
   ~Context();
 
   int Init( const char* odef_file );
+#ifdef EVTORDER
   void MarkActive();
   void UnmarkActive();
   void WaitAllDone();
   bool IsSyncEvent();
+#endif
 
   // Per-thread data
   evbuf_t*  evbuffer;    // Event buffer read from file
@@ -38,9 +40,11 @@ public:
   static const int INIT_EVSIZE = 1024;
 
 private:
+#ifdef EVTORDER
   static std::mutex fgMutex;
   static std::condition_variable fgAllDone;
   static int fgNactive;
+#endif
 
   Context& operator=( const Context& rhs );
 };
