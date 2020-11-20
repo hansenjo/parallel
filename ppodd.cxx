@@ -11,7 +11,7 @@
 #include "Context.h"
 
 #include <iostream>
-#include <climits>
+#include <limits>
 #include <unistd.h>
 #include <algorithm>  // for std::swap
 #include <map>
@@ -49,7 +49,7 @@ public:
       Context_t& ctx = *ctxPtr;
 
       // Process all defined analysis objects
-      int status = ctx.evdata.Load(ctx.evbuffer);
+      int status = ctx.evdata.Load(ctx.evbuffer.get());
       if( status != 0 ) {
         cerr << "Decoding error = " << status
              << " at event " << ctx.nev << endl;
@@ -253,7 +253,7 @@ static void usage() {
 int main( int argc, char* const* argv )
 {
   // Parse command line
-  unsigned long nev_max = ULONG_MAX;
+  size_t nev_max = std::numeric_limits<size_t>::max();
   int opt;
   bool mark = false;
   string input_file, odef_file, odat_file;

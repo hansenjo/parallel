@@ -2,16 +2,15 @@
 
 #include "DataFile.h"
 #include <iostream>
+#include <memory>
 
 using namespace std;
-
-const int BUFSIZE = 1024;
 
 DataFile::DataFile( const char* fname ) : filename(fname), filep(nullptr)
 {
   // Constructor
 
-  buffer = new evbuf_t[BUFSIZE];
+  buffer = make_unique<evbuf_t[]>(MAX_EVTSIZE);
   buffer[0] = 0;
 }
 
@@ -20,7 +19,6 @@ DataFile::~DataFile()
   // Destructor
 
   Close();
-  delete [] buffer;
 }
 
 int DataFile::Open( const char* fname )
@@ -48,16 +46,17 @@ int DataFile::Close()
 
 int DataFile::ReadEvent()
 {
-  const size_t wordsize = sizeof(buffer[0]);
-
   int status = 0;
   if( !IsOpen() && (status = Open()) != 0 )
     return status;
 
   clearerr(filep);
 
+  const size_t wordsize = sizeof(buffer[0]);
+  evbuf_t* bufptr = buffer.get();
+
   // Read header
-  size_t c = fread( buffer, 1, wordsize, filep );
+  size_t c = fread( bufptr, 1, wordsize, filep );
   if( c != wordsize ) {
     if( feof(filep) )
       return -1;
@@ -65,13 +64,13 @@ int DataFile::ReadEvent()
     return 1;
   }
   evbuf_t evsize = buffer[0];
-  if( evsize > BUFSIZE*wordsize ) {
+  if( evsize > MAX_EVTSIZE*wordsize ) {
     cerr << "Event too large, size = " << evsize << endl;
     return 2;
   }
 
   // Read data
-  c = fread( buffer+1, 1, evsize-wordsize, filep );
+  c = fread( bufptr+1, 1, evsize-wordsize, filep );
   if( c != evsize-wordsize ) {
     // EOF should never occur in the midst of the data
     cerr << "Error reading event data from file " << filename << endl;
