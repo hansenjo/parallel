@@ -18,7 +18,6 @@
 #include <memory>
 #include <thread>
 #include <chrono>
-#include <random>
 
 // For output module
 #include <fstream>
@@ -41,14 +40,6 @@ static int compress_output = 0;
 static int delay_us = 0;
 static bool order_events = false;
 static bool allow_sync_events = false;
-static random_device rd;
-
-// Thread-safe random number generator
-int intRand(int min, int max) {
-  thread_local minstd_rand generator(rd());
-  uniform_int_distribution<int> distribution(min, max);
-  return distribution(generator);
-}
 
 template<typename Context_t>
 class AnalysisWorker {

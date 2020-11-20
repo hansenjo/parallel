@@ -58,5 +58,6 @@ inline void DeleteContainerOfContainers( ContainerOfContainers& cc )
 
 unsigned int GetThreadCount();
 bool WildcardMatch( const std::string& candidate, const std::string& expr );
+int intRand( int min, int max );
 
 #endif
