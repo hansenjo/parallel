@@ -8,8 +8,8 @@
 
 using namespace std;
 
-Detector::Detector( const char* _name, int _imod )
-  : name(_name), type("--baseclass--"), imod(_imod-1), fVars(nullptr)
+Detector::Detector( string _name, int _imod )
+  : name(move(_name)), type("--baseclass--"), imod(_imod-1), fVars(nullptr)
 {
   if( imod<0 ) {
     cerr << "\"" << name << "\": "
@@ -68,45 +68,39 @@ int Detector::DefineVariables( bool )
 }
 
 // Declared in Podd.h
-int DefineVarsFromList( VarDef_t* defs, const char* prefix,
-			varlst_t* varlst, bool remove )
+int DefineVarsFromList( const std::vector<VarDef_t>& defs,
+                        const std::string& prefix,
+                        varlst_t& varlst, bool remove )
 {
-  if( !defs || !varlst )
+  if( defs.empty() or (remove && varlst.empty()) )
     return 0;
 
   int ndef = 0;
-  VarDef_t* def = defs;
-  while( def->name ) {
-    string varname;
-    if( prefix && *prefix ) {
-      varname.append(prefix);
+  for( auto& def : defs ) {
+    string varname(prefix);
+    if( !prefix.empty() ) {
       varname.append(".");
     }
-    varname.append(def->name);
-    auto it = varlst->begin();
-    for( ; it != varlst->end(); ++it ) {
-      if( (*it)->GetName() == varname ) {
-	break;
-      }
-    }
+    varname.append(def.name);
+    auto it = find_if( ALL(varlst), [&varname](auto& var) {
+      assert(var != nullptr); return (var->GetName() == varname);
+    });
     if( remove ) {
-      if( it != varlst->end() ) {
-	varlst->erase(it);
+      if( it != varlst.end() ) {
+	varlst.erase(it);
 	++ndef;
       }
     } else {
-      if( it != varlst->end() ) {
-	cerr << "Variable " << varname << " already exists"
-	  ", skipped" << endl;
-      } else if( !def->loc ) {
+      if( it != varlst.end() ) {
+	cerr << "Variable " << varname << " already exists, skipped" << endl;
+      } else if( !def.loc ) {
 	cerr << "Invalid location pointer for variable " << varname
 	     << ", skipped " << endl;
       } else {
-	varlst->emplace_back( new Variable(varname.c_str(), def->note, def->loc) );
+	varlst.emplace_back( new Variable(varname.c_str(), def.note.c_str(), def.loc) );
 	++ndef;
       }
     }
-    ++def;
   }
 
   return ndef;

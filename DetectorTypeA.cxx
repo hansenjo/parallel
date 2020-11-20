@@ -7,7 +7,8 @@
 
 using namespace std;
 
-DetectorTypeA::DetectorTypeA( const char* name, int imod ) : Detector(name,imod)
+DetectorTypeA::DetectorTypeA( const string& name, int imod )
+  : Detector(name, imod)
 {
   type = "A";
 }
@@ -69,15 +70,16 @@ void DetectorTypeA::Print() const
 
 int DetectorTypeA::DefineVariables( bool do_remove )
 {
-  VarDef_t defs[] = {
-    { "nval", "Number of data values processed", &nval },
-    { "sum",  "Sum of data",            &sum },
-    { "min",  "Minimum of data",        &min },
-    { "max",  "Maximum of data",        &max },
-    { "mean", "Mean of data",           &mean },
-    { "geom", "Geometric mean of data", &geom },
-    { 0 }
-  };
-  DefineVarsFromList( defs, GetName().c_str(), fVars, do_remove );
+  if( fVars ) {
+    const vector<VarDef_t> defs = {
+            {"nval", "Number of data values processed", &nval},
+            {"sum",  "Sum of data",                     &sum},
+            {"min",  "Minimum of data",                 &min},
+            {"max",  "Maximum of data",                 &max},
+            {"mean", "Mean of data",                    &mean},
+            {"geom", "Geometric mean of data",          &geom}
+    };
+    DefineVarsFromList(defs, GetName(), *fVars, do_remove);
+  }
   return 0;
 }

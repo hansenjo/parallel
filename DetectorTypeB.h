@@ -11,7 +11,7 @@ class Decoder;
 
 class DetectorTypeB : public Detector {
 public:
-  DetectorTypeB( const char* name, int imod );
+  DetectorTypeB( const std::string& name, int imod );
   virtual ~DetectorTypeB();
 
   virtual void Clear();
