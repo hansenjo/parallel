@@ -44,7 +44,7 @@ public:
 template<typename Data_t>
 class OutputWorker {
 public:
-  OutputWorker( WorkQueue<Data_t>& resultQueue, WorkQueue<Data_t>& freeQueue )
+  OutputWorker( ConcurrentQueue<Data_t>& resultQueue, ConcurrentQueue<Data_t>& freeQueue )
           : fResultQueue(resultQueue), fFreeQueue(freeQueue) {}
 
   void run() {
@@ -63,8 +63,8 @@ public:
     cout << "Output thread terminating" << endl;
   }
 private:
-  WorkQueue<Data_t>& fResultQueue;
-  WorkQueue<Data_t>& fFreeQueue;
+  ConcurrentQueue<Data_t>& fResultQueue;
+  ConcurrentQueue<Data_t>& fFreeQueue;
 };
 
 
@@ -76,7 +76,7 @@ int main( int /* argc */, const char*[] /* argv */ )
   using thread_data_t = int;
 
   // Allocate data objects and add them to the free queue
-  WorkQueue<thread_data_t> freeQueue;
+  ConcurrentQueue<thread_data_t> freeQueue;
   for( size_t i=0; i<NTHREADS; ++i ) {
     std::unique_ptr<thread_data_t> item(new thread_data_t);
     freeQueue.push(std::move(item));

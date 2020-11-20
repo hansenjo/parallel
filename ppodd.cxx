@@ -115,12 +115,12 @@ private:
   static inline SharedData fShared {};
 
   // Queue for finished contexts
-  WorkQueue<Context_t>& fFreeQueue;
+  ConcurrentQueue<Context_t>& fFreeQueue;
   // Temporary storage for event ordering
   std::map<size_t, std::unique_ptr<Context_t>> fBuffer;
 
 public:
-  OutputWorker( const string& odat_file, WorkQueue<Context_t>& freeQueue )
+  OutputWorker( const string& odat_file, ConcurrentQueue<Context_t>& freeQueue )
           : fFreeQueue(freeQueue) {
     // Open output file and set up filter chain
     if( fShared.open(odat_file) != 0 ) {
@@ -358,7 +358,7 @@ int main( int argc, char* const* argv )
   if( debug > 0 )
     cout << "Initializing " << nthreads << " analysis threads" << endl;
 
-  using Queue_t = WorkQueue<Context>;
+  using Queue_t = ConcurrentQueue<Context>;
   Queue_t freeQueue;
   for( unsigned int i=0; i<nthreads; ++i ) {
     // Deep copy of container objects

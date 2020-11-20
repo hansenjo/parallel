@@ -87,80 +87,49 @@
 
 namespace ThreadUtil {
 
-// Thread-safe queue with fine-grained locking. Holds objects of type
-// std::unique_ptr<Data_t>. The Data_t ownership is passed back and forth
-// between caller and queue as the unique_ptrs are pushed and popped.
-//
-// Adapted from "C++ Concurrency in Action", 2nd ed., A. Williams,
-// Manning, 2019, ch. 6
+// A simple concurrent queue. Holds objects of type std::unique_ptr<Data_t>.
+// The Data_t ownership is passed back and forth between caller and queue as
+// the unique_ptrs are pushed and popped.
 template<typename Data_t>
-class WorkQueue {
+class ConcurrentQueue {
 public:
-  WorkQueue() : head(new Node), tail(head.get()) {}
-  WorkQueue( const WorkQueue& ) = delete;
-  WorkQueue& operator=( const WorkQueue& ) = delete;
+  ConcurrentQueue() = default;
+  ConcurrentQueue( const ConcurrentQueue& ) = delete;
+  ConcurrentQueue& operator=( const ConcurrentQueue& ) = delete;
 
   // Fetch data if available, otherwise return nullptr
   std::unique_ptr<Data_t> try_pop() {
-    std::unique_ptr<Node> const old_head = try_pop_head();
-    return old_head ? std::move(old_head->data) : nullptr;
+    std::lock_guard lock(queue_mutex);
+    if( data_queue.empty() )
+      return nullptr;
+    std::unique_ptr<Data_t> ret( std::move(data_queue.front()) );
+    data_queue.pop();
+    return ret;
   }
   // Wait until data available, then return it
   std::unique_ptr<Data_t> wait_and_pop() {
-    std::unique_ptr<Node> const old_head = wait_pop_head();
-    return std::move(old_head->data);
+    std::unique_lock lock(queue_mutex);
+    while( data_queue.empty() )
+      data_cond.wait(lock);
+    std::unique_ptr<Data_t> ret( std::move(data_queue.front()) );
+    data_queue.pop();
+    return ret;
   }
   // Push data onto the queue
   void push( std::unique_ptr<Data_t>&& new_data ) {
-    std::unique_ptr<Node> p(new Node);
     {
-      std::lock_guard<std::mutex> tail_lock(tail_mutex);
-      tail->data = std::move(new_data);
-      Node* const new_tail = p.get();
-      tail->next = std::move(p);
-      tail = new_tail;
+      std::lock_guard lock(queue_mutex);
+      data_queue.push( std::move(new_data) );
     }
     data_cond.notify_one();
   }
   // Convenience functions
   std::unique_ptr<Data_t> next() { return wait_and_pop(); }
-  void add( std::unique_ptr<Data_t>&& data ) { push(std::move(data)); }
 
 private:
-  struct Node {
-    Node() = default;
-    std::unique_ptr<Data_t> data;
-    std::unique_ptr<Node> next;
-  };
-
-  std::mutex head_mutex;
-  std::unique_ptr<Node> head;
-  std::mutex tail_mutex;
-  Node* tail;
+  std::queue<std::unique_ptr<Data_t>> data_queue;
+  std::mutex queue_mutex;
   std::condition_variable data_cond;
-
-  Node* get_tail() {
-    std::lock_guard<std::mutex> tail_lock(tail_mutex);
-    return tail;
-  }
-  std::unique_ptr<Node> pop_head() {
-    std::unique_ptr<Node> old_head = std::move(head);
-    head = std::move(old_head->next);
-    return old_head;
-  }
-  std::unique_ptr<Node> wait_pop_head() {
-    std::unique_lock<std::mutex> head_lock(head_mutex);
-    while( head.get() == get_tail() )
-      data_cond.wait(head_lock);
-    return pop_head();
-  }
-  std::unique_ptr<Node> try_pop_head() {
-    std::lock_guard<std::mutex> head_lock(head_mutex);
-    if( head.get() == get_tail() ) {
-      return nullptr;
-    }
-    return pop_head();
-  }
 };
 
 template<typename Data_t>
@@ -169,19 +138,19 @@ public:
   // Normal constructor, using internal ResultQueue
   template<template<typename> class Action, typename T, typename... Args>
   QueuingThreadPool( size_t n, const Action<T>& action, Args&& ... args )
-          : fResultQueue(std::make_shared<WorkQueue<Data_t>>()) {
+          : fResultQueue(std::make_shared<ConcurrentQueue<Data_t>>()) {
     AddThreads(n, action, std::forward<Args>(args)...);
   }
   // Constructor with shared_ptr to external ResultQueue
   template<template<typename> class Action, typename T, typename... Args>
-  QueuingThreadPool( size_t n, std::shared_ptr<WorkQueue<Data_t>> rq,
+  QueuingThreadPool( size_t n, std::shared_ptr<ConcurrentQueue<Data_t>> rq,
                      const Action<T>& action, Args&& ... args )
           : fResultQueue(rq) {
     AddThreads(n, action, std::forward<Args>(args)...);
   }
   // Constructor with reference to external ResultQueue
   template<template<typename> class Action, typename T, typename... Args>
-  QueuingThreadPool( size_t n, WorkQueue<Data_t>& rq,
+  QueuingThreadPool( size_t n, ConcurrentQueue<Data_t>& rq,
                      const Action<T>& action, Args&& ... args )
           : fResultQueue(&rq) {
     AddThreads(n, action, std::forward<Args>(args)...);
@@ -208,8 +177,8 @@ public:
     return fResultQueue->wait_and_pop();
   }
 
-  WorkQueue<Data_t>& GetWorkQueue() { return fWorkQueue; }
-  WorkQueue<Data_t>& GetResultQueue() { return *fResultQueue; }
+  ConcurrentQueue<Data_t>& GetWorkQueue() { return fWorkQueue; }
+  ConcurrentQueue<Data_t>& GetResultQueue() { return *fResultQueue; }
 
   // Tell the threads to finish, then delete them
   void finish() {
@@ -224,8 +193,8 @@ public:
 
 private:
   std::vector<std::thread> fThreads;
-  WorkQueue<Data_t> fWorkQueue;
-  std::shared_ptr<WorkQueue<Data_t>> fResultQueue;
+  ConcurrentQueue<Data_t> fWorkQueue;
+  std::shared_ptr<ConcurrentQueue<Data_t>> fResultQueue;
 
   template<template<typename> class Action, typename T, typename... Args>
   void AddThreads( size_t n, const Action<T>& action, Args&& ... args ) {
