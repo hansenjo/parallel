@@ -91,7 +91,6 @@ int DefineVarsFromList( VarDef_t* defs, const char* prefix,
     }
     if( remove ) {
       if( it != varlst->end() ) {
-	delete *it;
 	varlst->erase(it);
 	++ndef;
       }
@@ -103,7 +102,7 @@ int DefineVarsFromList( VarDef_t* defs, const char* prefix,
 	cerr << "Invalid location pointer for variable " << varname
 	     << ", skipped " << endl;
       } else {
-	varlst->push_back( new Variable(varname.c_str(), def->note, def->loc) );
+	varlst->emplace_back( new Variable(varname.c_str(), def->note, def->loc) );
 	++ndef;
       }
     }

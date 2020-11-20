@@ -9,9 +9,9 @@ template< typename Container>
 class CopyObject {
 public:
   explicit CopyObject( Container& target ) : m_target(target) {}
-  void operator() ( const typename Container::value_type ptr )
+  void operator() ( const typename Container::value_type& ptr )
   {
-    m_target.push_back( ptr->Clone() );
+    m_target.emplace_back( ptr.get()->Clone() );
   }
 private:
   Container& m_target;
@@ -21,36 +21,11 @@ private:
 template< typename Container >
 inline void CopyContainer( const Container& from, Container& to )
 {
-  // Deep-copy all elements of 'from' container of pointers to 'to' Container
-  // using each element's Clone() method
+  // Deep-copy all elements of 'from' container, holding unique_ptr<Element>,
+  // to 'to' Container, using each element's Clone() method
   to.clear();
   CopyObject<Container> copy(to);
   std::for_each( from.begin(), from.end(), copy );
-}
-
-//___________________________________________________________________________
-struct DeleteObject {
-  template< typename T >
-  void operator() ( const T* ptr ) const { delete ptr; }
-};
-
-//___________________________________________________________________________
-template< typename Container >
-inline void DeleteContainer( Container& c )
-{
-  // Delete all elements of given container of pointers
-  std::for_each( c.begin(), c.end(), DeleteObject() );
-  c.clear();
-}
-
-//___________________________________________________________________________
-template< typename ContainerOfContainers >
-inline void DeleteContainerOfContainers( ContainerOfContainers& cc )
-{
-  // Delete all elements of given container of containers of pointers
-  std::for_each( cc.begin(), cc.end(),
-		 DeleteContainer<typename ContainerOfContainers::value_type> );
-  cc.clear();
 }
 
 //___________________________________________________________________________

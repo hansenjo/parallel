@@ -23,21 +23,15 @@ Context::Context( const Context& )
 Context::~Context()
 {
   assert( !is_active );
-  DeleteContainer( outvars );
-  DeleteContainer( detectors );
-  DeleteContainer( variables );
 }
 
 int Context::Init( const char* odef_file )
 {
   // Initialize current context
 
-  DeleteContainer(outvars);
-  DeleteContainer(variables);
-
   // Initialize detectors
   int err = 0;
-  for(auto* det : detectors) {
+  for(auto& det : detectors) {
     int status;
     det->SetVarList(variables);
     if( (status = det->Init()) != 0 ) {
@@ -49,7 +43,7 @@ int Context::Init( const char* odef_file )
     return 1;
 
   // Read output definitions & configure output
-  outvars.push_back( new EventNumberVariable(nev) );
+  outvars.emplace_back( new EventNumberVariable(nev) );
 
   if( !odef_file || !*odef_file )
     return 2;
@@ -69,9 +63,9 @@ int Context::Init( const char* odef_file )
     pos = line.find_first_of(" \t");
     if( pos != string::npos )
       line.erase(pos);
-    for( auto *var : variables ) {
+    for( auto& var : variables ) {
       if( WildcardMatch(var->GetName(), line) )
-	outvars.push_back( new PlainVariable(var) );
+	outvars.emplace_back( new PlainVariable(var.get()) );
     }
   }
   inp.close();

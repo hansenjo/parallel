@@ -55,7 +55,7 @@ public:
              << " at event " << ctx.nev << endl;
         goto skip;
       }
-      for( auto det : ctx.detectors ) {
+      for( auto& det : ctx.detectors ) {
         det->Clear();
         if( det->Decode(ctx.evdata) != 0 )
           goto skip;
@@ -187,7 +187,7 @@ public:
 private:
   void WriteEvent( ostrm_t& os, Context_t* ctx, bool do_header = false ) {
     // Write output file data (or header names)
-    for( auto var : ctx->outvars ) {
+    for( auto& var : ctx->outvars ) {
       var->write(os, do_header);
     }
     if( debug > 0 && !do_header )
@@ -203,9 +203,7 @@ private:
     //  NNNNN = number of bytes
     uint32_t nvars = ctx->outvars.size();
     os.write(reinterpret_cast<const char*>(&nvars), sizeof(nvars));
-    for( auto it = ctx->outvars.begin();
-         it != ctx->outvars.end(); ++it ) {
-      OutputElement* var = *it;
+    for( auto& var : ctx->outvars ) {
       char type = var->GetType();
       os.write(&type, sizeof(type));
     }
@@ -338,8 +336,8 @@ int main( int argc, char* const* argv )
 
   detlst_t gDets;
   // Set up analysis objects
-  gDets.push_back(new DetectorTypeA("detA", 1));
-  gDets.push_back(new DetectorTypeB("detB", 2));
+  gDets.emplace_back(new DetectorTypeA("detA", 1));
+  gDets.emplace_back(new DetectorTypeB("detB", 2));
 
   // if( debug > 1 )
   //   PrintVarList(gVars);
@@ -356,11 +354,13 @@ int main( int argc, char* const* argv )
   using Queue_t = ConcurrentQueue<Context>;
   Queue_t freeQueue;
   for( unsigned int i=0; i<nthreads; ++i ) {
-    // Deep copy of container objects
+    // Make new context
     std::unique_ptr<Context> ctx(new Context);
+    // Clone detectors into each new context
     CopyContainer(gDets, ctx->detectors);
     freeQueue.push( std::move(ctx) );
   }
+  gDets.clear();  // No need to keep the prototype detector objects around
 
   // Configure output
   if( compress_output > 0 && odat_file.size() > 3
@@ -442,8 +442,6 @@ int main( int argc, char* const* argv )
   pool.push_result(nullptr);
   output.join();
 #endif
-
-  DeleteContainer(gDets);
 
   return 0;
 }
