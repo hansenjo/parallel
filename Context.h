@@ -10,6 +10,7 @@
 #include <functional>
 #include <cassert>
 #include <memory>
+#include <string>
 
 class Context {
 public:
@@ -17,7 +18,7 @@ public:
   Context( const Context& context );
   ~Context();
 
-  int Init( const char* odef_file );
+  int Init( const std::string& odef_file );
 #ifdef EVTORDER
   void MarkActive();
   void UnmarkActive();

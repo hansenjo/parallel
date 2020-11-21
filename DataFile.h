@@ -14,11 +14,11 @@ static const int MAX_EVTSIZE = 1024;
 
 class DataFile {
 public:
-  explicit DataFile( const char* filename = "" );
+  explicit DataFile( std::string filename = std::string() );
   ~DataFile();
 
   bool      IsOpen() { return (filep != nullptr); }
-  int       Open( const char* filename = "" );
+  int       Open( const std::string& filename = std::string() );
   int       ReadEvent();
   int       Close();
 
