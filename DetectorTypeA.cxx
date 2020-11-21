@@ -15,7 +15,7 @@ DetectorTypeA::DetectorTypeA( const string& name, int imod )
 
 DetectorTypeA::~DetectorTypeA()
 {
-  DefineVariables( kRemove );
+ DetectorTypeA::DefineVariables( kRemove );
 }
 
 void DetectorTypeA::Clear()
@@ -27,9 +27,9 @@ void DetectorTypeA::Clear()
   max = -min;
 }
 
-Detector* DetectorTypeA::Clone() const
+unique_ptr<Detector> DetectorTypeA::Clone() const
 {
-  return new DetectorTypeA(*this);
+  return make_unique<DetectorTypeA>(*this);
 }
 
 
@@ -70,16 +70,13 @@ void DetectorTypeA::Print() const
 
 int DetectorTypeA::DefineVariables( bool do_remove )
 {
-  if( fVars ) {
-    const vector<VarDef_t> defs = {
-            {"nval", "Number of data values processed", &nval},
-            {"sum",  "Sum of data",                     &sum},
-            {"min",  "Minimum of data",                 &min},
-            {"max",  "Maximum of data",                 &max},
-            {"mean", "Mean of data",                    &mean},
-            {"geom", "Geometric mean of data",          &geom}
-    };
-    DefineVarsFromList(defs, GetName(), *fVars, do_remove);
-  }
-  return 0;
+  const vector<VarDef_t> defs = {
+          {"nval", "Number of data values processed", &nval},
+          {"sum",  "Sum of data",                     &sum},
+          {"min",  "Minimum of data",                 &min},
+          {"max",  "Maximum of data",                 &max},
+          {"mean", "Mean of data",                    &mean},
+          {"geom", "Geometric mean of data",          &geom}
+  };
+  return DefineVarsFromList(defs, GetName(), fVars, do_remove);
 }

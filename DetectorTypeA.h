@@ -15,21 +15,21 @@ public:
   virtual ~DetectorTypeA();
 
   virtual void Clear();
-  [[nodiscard]] virtual Detector* Clone() const;
+  [[nodiscard]] virtual std::unique_ptr<Detector> Clone() const;
   virtual int  Decode( Decoder& evdata );
   virtual int  Analyze();
   virtual void Print() const;
 
 protected:
   // Statistics results
-  double nval;
-  double sum;
-  double min;
-  double max;
-  double mean;
-  double geom;
+  double nval{};
+  double sum{};
+  double min{};
+  double max{};
+  double mean{};
+  double geom{};
 
-  virtual int  DefineVariables( bool remove = false );
+  virtual int  DefineVariables( bool remove );
 };
 
 #endif

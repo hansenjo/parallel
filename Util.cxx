@@ -16,11 +16,12 @@ unsigned int GetThreadCount()
   return std::thread::hardware_concurrency();
 }
 
+// Test string 'candidate' against the wildcard expression 'expr'. Only "*" is
+// supported as a wildcard character; it matches zero or more characters.
+// Example: "h*ello*ld*" matches "hello world", "hello_molds" etc.
+// Comparisons are case-sensitive. Return true if there is a match.
 bool WildcardMatch( const string& candidate, const string& expr )
 {
-  // Test string 'candidate' against the wildcard expression 'expr'.
-  // Comparisons are case-insensitive
-  // Return true if there is a match.
 
   using tokenizer = boost::tokenizer<boost::char_separator<char>>;
 

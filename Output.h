@@ -19,7 +19,7 @@ public:
 
   [[nodiscard]] virtual const std::string& GetName() const = 0;
   [[nodiscard]] virtual char GetType() const = 0;
-  virtual ostrm_t& write( ostrm_t& os, bool headerinfo = false ) const = 0;
+  virtual ostrm_t& write( ostrm_t& os, bool headerinfo ) const = 0;
 };
 
 class PlainVariable : public OutputElement {
@@ -28,7 +28,7 @@ public:
 
   [[nodiscard]] virtual const std::string& GetName() const;
   [[nodiscard]] virtual char GetType() const { return (2<<5)+sizeof(double); }
-  virtual ostrm_t& write( ostrm_t& os, bool headerinfo = false ) const;
+  virtual ostrm_t& write( ostrm_t& os, bool headerinfo ) const;
 
 private:
   Variable* fVar;
@@ -40,7 +40,7 @@ public:
 
   [[nodiscard]] virtual const std::string& GetName() const { return fName; }
   [[nodiscard]] virtual char GetType() const { return sizeof(int); }
-  virtual ostrm_t& write( ostrm_t& os, bool headerinfo = false ) const;
+  virtual ostrm_t& write( ostrm_t& os, bool headerinfo ) const;
 
 private:
   static const std::string fName;

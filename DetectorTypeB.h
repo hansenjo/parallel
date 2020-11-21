@@ -15,21 +15,21 @@ public:
   virtual ~DetectorTypeB();
 
   virtual void Clear();
-  [[nodiscard]] virtual Detector* Clone() const;
+  [[nodiscard]] virtual std::unique_ptr<Detector> Clone() const;
   virtual int  Analyze();
   virtual void Print() const;
 
 protected:
   // Fit results
-  double slope;
-  double inter;
-  double cov11;
-  double cov22;
-  double cov12;
-  double ndof;
-  double chi2;
+  double slope{};
+  double inter{};
+  double cov11{};
+  double cov22{};
+  double cov12{};
+  double ndof{};
+  double chi2{};
 
-  virtual int  DefineVariables( bool remove = false );
+  virtual int  DefineVariables( bool remove );
 };
 
 #endif

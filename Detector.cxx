@@ -17,20 +17,25 @@ Detector::Detector( string _name, int _imod )
   }
 }
 
+// Clear event-by-event data
 void Detector::Clear()
 {
   data.clear();
 }
 
-int Detector::Init()
+// Initialize detector
+// If 'shared' is true, initialize data shared among all instances
+int Detector::Init( bool shared )
 {
-  return DefineVariables( kDefine );
+  int ret = ReadDatabase(shared);
+  if( !shared )
+    DefineVariables( kDefine );
+  return ret;
 }
 
+// Generic detector decoding
 int Detector::Decode( Decoder& evdata )
 {
-  // Generic detector decoding
-
   int ndata = evdata.GetNdata(imod);
   if( debug > 1 )
     Print();
@@ -62,7 +67,12 @@ void Detector::Print() const
   cout << "DET(" << type << "): " << name << endl;
 }
 
-int Detector::DefineVariables( bool )
+int Detector::DefineVariables( bool /* remove */ )
+{
+  return 0;
+}
+
+int Detector::ReadDatabase( bool /* shared */ )
 {
   return 0;
 }
@@ -70,34 +80,39 @@ int Detector::DefineVariables( bool )
 // Declared in Podd.h
 int DefineVarsFromList( const std::vector<VarDef_t>& defs,
                         const std::string& prefix,
-                        varlst_t& varlst, bool remove )
+                        varlst_t* varlst, bool remove )
 {
-  if( defs.empty() or (remove && varlst.empty()) )
+  if( defs.empty() or (remove and (not varlst or varlst->empty())) )
     return 0;
+  if( not varlst ) {
+    cerr << "Missing variable list. Cannot define any variables" << endl;
+    return 0;
+  }
+  auto& vars = *varlst;
 
   int ndef = 0;
-  for( auto& def : defs ) {
+  for( const auto& def : defs ) {
     string varname(prefix);
     if( !prefix.empty() ) {
       varname.append(".");
     }
     varname.append(def.name);
-    auto it = find_if( ALL(varlst), [&varname](auto& var) {
-      assert(var != nullptr); return (var->GetName() == varname);
+    auto it = find_if( ALL(vars), [&varname](auto& var) {
+      return (var && var->GetName() == varname);
     });
     if( remove ) {
-      if( it != varlst.end() ) {
-	varlst.erase(it);
+      if( it != vars.end() ) {
+	vars.erase(it);
 	++ndef;
       }
     } else {
-      if( it != varlst.end() ) {
+      if( it != vars.end() ) {
 	cerr << "Variable " << varname << " already exists, skipped" << endl;
       } else if( !def.loc ) {
 	cerr << "Invalid location pointer for variable " << varname
 	     << ", skipped " << endl;
       } else {
-	varlst.emplace_back( new Variable(varname, def.note, def.loc) );
+	vars.push_back( make_unique<Variable>(varname, def.note, def.loc) );
 	++ndef;
       }
     }

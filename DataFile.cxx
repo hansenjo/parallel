@@ -46,8 +46,7 @@ int DataFile::Close()
 
 int DataFile::ReadEvent()
 {
-  int status = 0;
-  if( !IsOpen() && (status = Open()) != 0 )
+  if( int status; !IsOpen() && (status = Open()) != 0 )
     return status;
 
   clearerr(filep);
@@ -56,8 +55,7 @@ int DataFile::ReadEvent()
   evbuf_t* bufptr = buffer.get();
 
   // Read header
-  size_t c = fread( bufptr, 1, wordsize, filep );
-  if( c != wordsize ) {
+  if( fread( bufptr, 1, wordsize, filep ) != wordsize ) {
     if( feof(filep) )
       return -1;
     cerr << "Error reading event header from file " << filename << endl;
@@ -70,12 +68,11 @@ int DataFile::ReadEvent()
   }
 
   // Read data
-  c = fread( bufptr+1, 1, evsize-wordsize, filep );
-  if( c != evsize-wordsize ) {
+  if( fread( bufptr+1, 1, evsize-wordsize, filep ) != evsize-wordsize ) {
     // EOF should never occur in the midst of the data
     cerr << "Error reading event data from file " << filename << endl;
     return 2;
   }
 
-  return status;
+  return 0;
 }

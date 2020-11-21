@@ -7,8 +7,10 @@
 
 #include <iostream>
 #include <fstream>
+#include <boost/algorithm/string/trim.hpp>
 
 using namespace std;
+using namespace boost::algorithm;
 
 Context::Context()
   : is_init(false), is_active(false)
@@ -31,10 +33,12 @@ int Context::Init( const string& odef_file )
 
   // Initialize detectors
   int err = 0;
-  for(auto& det : detectors) {
+  for( auto& det : detectors ) {
     int status;
+    // Link each of our detectors to our variable list
     det->SetVarList(variables);
-    if( (status = det->Init()) != 0 ) {
+    // Init() calls the detector's ReadDatabase and DefineVariables
+    if( (status = det->Init(false)) != 0 ) {
       err = status;
       cerr << "Error initializing detector " << det->GetName() << endl;
     }
@@ -43,7 +47,7 @@ int Context::Init( const string& odef_file )
     return 1;
 
   // Read output definitions & configure output
-  outvars.emplace_back( new EventNumberVariable(nev) );
+  outvars.push_back( make_unique<EventNumberVariable>(nev) );
 
   if( odef_file.empty() )
     return 2;
@@ -55,19 +59,18 @@ int Context::Init( const string& odef_file )
   }
   string line;
   while( getline(inp,line) ) {
-    // Wildcard match
-    string::size_type pos = line.find_first_not_of(" \t");
-    if( line.empty() || pos == string::npos || line[pos] == '#' )
-      continue;
-    line.erase(0,pos);
-    pos = line.find_first_of(" \t");
-    if( pos != string::npos )
+    // Wildcard match variable names, ignoring trailing comments
+    if( string::size_type pos = line.find('#'); pos != string::npos )
       line.erase(pos);
+    trim(line);
+    if( line.empty() )
+      continue;
     for( auto& var : variables ) {
       if( WildcardMatch(var->GetName(), line) )
-	outvars.emplace_back( new PlainVariable(var.get()) );
+	outvars.push_back( make_unique<PlainVariable>(var.get()) );
     }
   }
+  line.clear();
   inp.close();
 
   if( outvars.empty() ) {

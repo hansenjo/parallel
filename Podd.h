@@ -23,9 +23,14 @@ struct VarDef_t {
 };
 enum { kDefine = false, kRemove = true };
 
+// Define global variables from list of definitions in 'defs'.
+// Prepend 'prefix', if any, to all variable names.
+// Newly defined variables are placed in the variable list 'varlst'.
+// If 'remove' is true, remove any existing variables instead.
+// Returns number of variables defined.
 int DefineVarsFromList( const std::vector<VarDef_t>& defs,
                         const std::string& prefix,
-                        varlst_t& varlst, bool remove = false );
+                        varlst_t* varlst, bool remove = false );
 
 void PrintVarList( varlst_t& varlst );
 
