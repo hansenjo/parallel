@@ -49,8 +49,7 @@ public:
       Context_t& ctx = *ctxPtr;
 
       // Process all defined analysis objects
-      int status = ctx.evdata.Load(ctx.evbuffer.get());
-      if( status != 0 ) {
+      if( int status = ctx.evdata.Load(ctx.evbuffer.get()) ) {
         cerr << "Decoding error = " << status
              << " at event " << ctx.nev << endl;
         goto skip;
@@ -148,8 +147,8 @@ public:
       if( order_events ) {
         // Wait for next event in sequence before writing
         // FIXME: I don't think this works with > 1 thread
-        auto& last_written = fShared.fLastWritten;
-        if( ctx.iseq == last_written + 1 ) {
+        if( auto& last_written = fShared.fLastWritten;
+                ctx.iseq == last_written + 1 ) {
           WriteEvent(outs, ctxPtr.get());
           ++last_written;
           ctx.UnmarkActive();
@@ -177,7 +176,8 @@ public:
         WriteEvent(outs, ctxPtr.get());
        skip:
 #ifdef EVTORDER
-        ctx.UnmarkActive();
+        if( order_events )
+          ctx.UnmarkActive();
 #endif
         fFreeQueue.push( std::move(ctxPtr) );
       }
@@ -213,7 +213,7 @@ private:
 
 static void default_names( string infile, string& odef, string& odat ) {
   // If not given, set defaults for odef and output files
-  if( infile.empty() )
+  if( infile.empty() || !(odef.empty() || odat.empty()) )
     return;
   string::size_type pos = infile.rfind('.');
   if( pos != string::npos )
@@ -250,17 +250,17 @@ static void usage() {
 
 int main( int argc, char* const* argv )
 {
-  // Parse command line
-  size_t nev_max = std::numeric_limits<size_t>::max();
-  int opt;
-  bool mark = false;
-  string input_file, odef_file, odat_file;
-  unsigned int nthreads = 0;
-
   prgname = argv[0];
   if( prgname.size() >= 2 && prgname.substr(0, 2) == "./" )
     prgname.erase(0, 2);
 
+  // Parse command line
+  size_t nev_max = std::numeric_limits<size_t>::max();
+  bool mark = false;
+  string input_file, odef_file, odat_file;
+  unsigned int nthreads = 0;
+
+  int opt;
   while( (opt = getopt(argc, argv, "c:d:n:o:j:y:e:zmh")) != -1 ) {
     switch( opt ) {
       case 'c':
@@ -329,18 +329,11 @@ int main( int argc, char* const* argv )
     cout << "order_events = " << order_events << endl;
     cout << "allow_sync_events = " << allow_sync_events << endl;
   }
-  // Open input
-  DataFile inp(input_file);
-  if( inp.Open() )
-    return 2;
 
-  detlst_t gDets;
   // Set up analysis objects
-  gDets.emplace_back(new DetectorTypeA("detA", 1));
-  gDets.emplace_back(new DetectorTypeB("detB", 2));
-
-  // if( debug > 1 )
-  //   PrintVarList(gVars);
+  detlst_t gDets;
+  gDets.push_back( make_unique<DetectorTypeA>("detA", 1));
+  gDets.push_back( make_unique<DetectorTypeB>("detB", 2));
 
   // Set up thread contexts. Copy analysis objects.
   unsigned int ncores = GetThreadCount();
@@ -355,12 +348,25 @@ int main( int argc, char* const* argv )
   Queue_t freeQueue;
   for( unsigned int i=0; i<nthreads; ++i ) {
     // Make new context
-    std::unique_ptr<Context> ctx(new Context);
+    auto ctxPtr = make_unique<Context>();
+    Context& ctx = *ctxPtr;
     // Clone detectors into each new context
-    CopyContainer(gDets, ctx->detectors);
-    freeQueue.push( std::move(ctx) );
+    CopyContainer(gDets, ctx.detectors);
+    // Init if necessary
+    //TODO: split up Init:
+    // (1) Read database and all other related things, do before cloning
+    //     detectors
+    // (2) DefineVariables: do in threads
+    if( !ctx.is_init ) {
+      if( ctx.Init(odef_file) != 0 )
+        break;
+    }
+    freeQueue.push( std::move(ctxPtr) );
   }
   gDets.clear();  // No need to keep the prototype detector objects around
+
+  // if( debug > 1 )
+  //   PrintVarList(gVars);
 
   // Configure output
   if( compress_output > 0 && odat_file.size() > 3
@@ -387,6 +393,11 @@ int main( int argc, char* const* argv )
   if( debug > 0 )
     cout << "Starting event loop, nev_max = " << nev_max << endl;
 
+  // Open input
+  DataFile inp(input_file);
+  if( inp.Open() )
+    return 2;
+
   // Loop: Read one event and hand it off to an idle thread
   while( inp.ReadEvent() == 0 && nev < nev_max ) {
     ++nev;
@@ -398,22 +409,14 @@ int main( int argc, char* const* argv )
 
     auto ctxPtr = freeQueue.next();
     Context& ctx = *ctxPtr;
-    // Init if necessary
-    //TODO: split up Init:
-    // (1) Read database and all other related things, do before cloning
-    //     detectors
-    // (2) DefineVariables: do in threads
-    if( !ctx.is_init ) {
-      if( ctx.Init(odef_file) != 0 )
-        break;
-    }
 
     swap(ctx.evbuffer, inp.GetEvBuffer());
     ctx.nev = nev;
+
+#ifdef EVTORDER
     // Sequence number for event ordering. These must be consecutive
     ctx.iseq = nev;
 
-#ifdef EVTORDER
     // Synchronize the event stream at sync events (e.g. scalers).
     // All events before sync events will be processed, followed by
     // the sync event(s), then normal processing resumes.
@@ -421,7 +424,8 @@ int main( int argc, char* const* argv )
       ctx.WaitAllDone();
       doing_sync = ctx.IsSyncEvent();
     }
-    ctx.MarkActive();
+    if( order_events )
+      ctx.MarkActive();
 #endif
     pool.push_work(std::move(ctxPtr));
   }

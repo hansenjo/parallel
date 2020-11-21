@@ -15,7 +15,7 @@ DetectorTypeB::DetectorTypeB( const std::string& name, int imod )
 
 DetectorTypeB::~DetectorTypeB()
 {
-  DefineVariables( kRemove );
+  DetectorTypeB::DefineVariables( kRemove );
 }
 
 void DetectorTypeB::Clear()
@@ -25,9 +25,9 @@ void DetectorTypeB::Clear()
   slope = inter = cov11 = cov22 = cov12 = chi2 = 1e38;
 }
 
-Detector* DetectorTypeB::Clone() const
+unique_ptr<Detector> DetectorTypeB::Clone() const
 {
-  return new DetectorTypeB(*this);
+  return make_unique<DetectorTypeB>(*this);
 }
 
 int DetectorTypeB::Analyze()
@@ -39,10 +39,9 @@ int DetectorTypeB::Analyze()
 	 << ", expected even number" << endl;
     return 1;
   }
-  int n = data.size()/2;
-  if( n >= 3 ) {
+  if( size_t n = data.size()/2; n >= 3 ) {
     double S11 = 0, S12 = 0, S22 = 0, G1 = 0, G2 = 0;
-    for( int i = 0; i < n; ++i ) {
+    for( size_t i = 0; i < n; ++i ) {
       double x = data[2*i];
       double y = data[2*i+1];
       S11 += 1.0;
@@ -58,7 +57,7 @@ int DetectorTypeB::Analyze()
     cov22 = S22*D;
     cov12 = -S12*D;
     chi2 = 0;
-    for( int i = 0; i < n; ++i ) {
+    for( size_t i = 0; i < n; ++i ) {
       double x = data[2*i];
       double d = inter + slope*x;
       chi2 += d*d;
@@ -76,17 +75,14 @@ void DetectorTypeB::Print() const
 
 int DetectorTypeB::DefineVariables( bool do_remove )
 {
-  if( fVars ) {
-    const vector<VarDef_t> defs = {
-            {"slope", "Slope",                &slope},
-            {"inter", "Intercept",            &inter},
-            {"cov11", "Error^2 in slope",     &cov11},
-            {"cov22", "Error^2 in intercept", &cov22},
-            {"cov12", "Correlation coeff",    &cov12},
-            {"ndof",  "Degrees of freedom",   &ndof},
-            {"chi2",  "Chi2",                 &chi2}
-    };
-    DefineVarsFromList(defs, GetName(), *fVars, do_remove);
-  }
-  return 0;
+  const vector<VarDef_t> defs = {
+          {"slope", "Slope",                &slope},
+          {"inter", "Intercept",            &inter},
+          {"cov11", "Error^2 in slope",     &cov11},
+          {"cov22", "Error^2 in intercept", &cov22},
+          {"cov12", "Correlation coeff",    &cov12},
+          {"ndof",  "Degrees of freedom",   &ndof},
+          {"chi2",  "Chi2",                 &chi2}
+  };
+  return DefineVarsFromList(defs, GetName(), fVars, do_remove);
 }

@@ -5,9 +5,7 @@
 
 using namespace std;
 
-Decoder::Decoder()
-{
-}
+Decoder::Decoder() = default;
 
 void Decoder::Clear()
 {

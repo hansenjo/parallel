@@ -11,7 +11,7 @@ public:
   explicit CopyObject( Container& target ) : m_target(target) {}
   void operator() ( const typename Container::value_type& ptr )
   {
-    m_target.emplace_back( ptr.get()->Clone() );
+    m_target.push_back( std::move(ptr->Clone()) );
   }
 private:
   Container& m_target;

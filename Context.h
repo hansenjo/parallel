@@ -32,11 +32,11 @@ public:
   detlst_t  detectors;   // Detectors with private event-by-event data
   varlst_t  variables;   // Interface to analysis results
   voutp_t   outvars;     // Output definitions
-  size_t    nev;         // Event number given to this thread
-  size_t    iseq;        // Event sequence number
-  //int       id;          // This thread's ID
+  size_t    nev{};       // Event number given to this thread
+  size_t    iseq{};      // Event sequence number
+  //int       id{};        // This thread's ID
   bool      is_init;     // Init() called successfully
-  bool      is_active;
+  bool      is_active;   // Currently being processed in a worker thread
 
 private:
 #ifdef EVTORDER
