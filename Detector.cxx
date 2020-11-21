@@ -97,7 +97,7 @@ int DefineVarsFromList( const std::vector<VarDef_t>& defs,
 	cerr << "Invalid location pointer for variable " << varname
 	     << ", skipped " << endl;
       } else {
-	varlst.emplace_back( new Variable(varname.c_str(), def.note.c_str(), def.loc) );
+	varlst.emplace_back( new Variable(varname, def.note, def.loc) );
 	++ndef;
       }
     }

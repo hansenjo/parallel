@@ -6,7 +6,7 @@
 
 using namespace std;
 
-DataFile::DataFile( const char* fname ) : filename(fname), filep(nullptr)
+DataFile::DataFile( string fname ) : filename(move(fname)), filep(nullptr)
 {
   // Constructor
 
@@ -21,9 +21,9 @@ DataFile::~DataFile()
   Close();
 }
 
-int DataFile::Open( const char* fname )
+int DataFile::Open( const string& fname )
 {
-  if( fname && *fname )
+  if( !fname.empty() )
     filename = fname;
 
   filep = fopen( filename.c_str(), "r" );

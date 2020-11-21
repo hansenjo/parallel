@@ -330,7 +330,7 @@ int main( int argc, char* const* argv )
     cout << "allow_sync_events = " << allow_sync_events << endl;
   }
   // Open input
-  DataFile inp(input_file.c_str());
+  DataFile inp(input_file);
   if( inp.Open() )
     return 2;
 
@@ -404,7 +404,7 @@ int main( int argc, char* const* argv )
     //     detectors
     // (2) DefineVariables: do in threads
     if( !ctx.is_init ) {
-      if( ctx.Init(odef_file.c_str()) != 0 )
+      if( ctx.Init(odef_file) != 0 )
         break;
     }
 

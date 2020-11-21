@@ -25,7 +25,7 @@ Context::~Context()
   assert( !is_active );
 }
 
-int Context::Init( const char* odef_file )
+int Context::Init( const string& odef_file )
 {
   // Initialize current context
 
@@ -45,7 +45,7 @@ int Context::Init( const char* odef_file )
   // Read output definitions & configure output
   outvars.emplace_back( new EventNumberVariable(nev) );
 
-  if( !odef_file || !*odef_file )
+  if( odef_file.empty() )
     return 2;
 
   ifstream inp(odef_file);
