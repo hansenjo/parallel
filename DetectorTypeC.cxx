@@ -8,6 +8,7 @@
 #include "Decoder.h"
 #include <cstdlib>
 #include <algorithm>
+#include <cassert>
 
 using namespace std;
 
@@ -105,7 +106,11 @@ int DetectorTypeC::Analyze()
   if( last_digit >= 0 )
     m_result += char('0'+last_digit);
 
+  assert( m_result.length() == n+1 );
+
   m_ndig = n;
+  m_last8 = std::stod( m_result.substr(m_result.length()-8,8));
+
   return 0;
 }
 
