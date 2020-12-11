@@ -5,6 +5,7 @@
 //#include "Decoder.h"
 #include "DetectorTypeA.h"
 #include "DetectorTypeB.h"
+#include "DetectorTypeC.h"
 #include "Output.h"
 #include "Util.h"
 #include "ThreadPool.hpp"
@@ -99,7 +100,7 @@ private:
     ostrm_t outs;
     bool fHeaderWritten;
     size_t fLastWritten;
-  };
+  } __attribute__((aligned(128))) __attribute__((packed));
 
   // Singleton shared data blob
   static inline SharedData fShared {};
@@ -334,6 +335,7 @@ int main( int argc, char* const* argv )
   detlst_t gDets;
   gDets.push_back( make_unique<DetectorTypeA>("detA", 1));
   gDets.push_back( make_unique<DetectorTypeB>("detB", 2));
+  gDets.push_back( make_unique<DetectorTypeC>("detC", 3));
 
   // Set up thread contexts. Copy analysis objects.
   unsigned int ncores = GetThreadCount();
