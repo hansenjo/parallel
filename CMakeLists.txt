@@ -4,8 +4,8 @@ project(ppodd CXX)
 option(PPODD_EVTORDER "Build event ordering code" OFF)
 
 set(PPODD ppodd)
-set(PSRC DataFile.cxx Decoder.cxx Variable.cxx Detector.cxx
-  DetectorTypeA.cxx DetectorTypeB.cxx Output.cxx Util.cxx Context.cxx)
+set(PSRC DataFile.cxx Decoder.cxx Variable.cxx Output.cxx Util.cxx Context.cxx
+  Detector.cxx DetectorTypeA.cxx DetectorTypeB.cxx DetectorTypeC.cxx)
 string(REPLACE .cxx .h PHDR "${PSRC}")
 list(APPEND PSRC ppodd.cxx)
 list(APPEND PHDR Podd.h)
