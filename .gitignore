@@ -9,7 +9,8 @@ lib*.dylib*
 
 # Generated files
 *.odat
-*.odat.gz
+*.out.gz
+*.out
 ppodd
 generate
 /Examples/ThreadTest
@@ -25,3 +26,4 @@ generate
 *.diff
 callgrind.out.*
 build/
+.DS_Store
