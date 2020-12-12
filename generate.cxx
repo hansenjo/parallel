@@ -11,7 +11,7 @@
 #include <cassert>
 #include <tuple>
 #include <stdexcept>
-#include <vector>
+//#include <vector>
 #include <memory>
 #include <sstream>
 
@@ -123,17 +123,17 @@ void get_args( int argc, char** argv )
   while( (opt = getopt(argc, argv, "c:d:n:h")) != -1 ) {
     switch (opt) {
       case 'c':
-        NDET = atoi(optarg);
+        NDET = stoi(optarg);
         if( NDET > MAXMODULES ) {
           cerr << "Too many detectors, max " << MAXMODULES << endl;
           exit(255);
         }
         break;
       case 'd':
-        debug = atoi(optarg);
+        debug = stoi(optarg);
         break;
       case 'n':
-        NEVT = atoi(optarg);
+        NEVT = stoi(optarg);
         break;
       case 'h':
       default:
@@ -179,7 +179,7 @@ int main( int argc, char** argv )
               for( int i = 0; i < ndata; ++i ) {
                 assert(2 * i + 1 < MAXDATA);
                 // y = error + intercept + slope*x;
-                auto[y1, y2] = gauss();
+                auto [y1,y2] = gauss();
                 double x = i - 3.5 + drand48();
                 data[2 * i] = x;
                 data[2 * i + 1] = y1 / 20. + inter + slope * x;
@@ -191,8 +191,10 @@ int main( int argc, char** argv )
             // Module type 3 wants a single data word indicating the desired precision
             ndata = 1;
             data[0] = 0.0;
-            while( data[0] < 1000. )
-              data[0] = 10000. + 2000. * drand48();
+            while( data[0] < 300. ) {
+              auto [y1,y2] = gauss();
+              data[0] = 2000. + 200. * y1;
+            }
             break;
           default:
             // Generate between 1 and MAXDATA random data values per module
