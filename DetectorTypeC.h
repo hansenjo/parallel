@@ -26,7 +26,7 @@ protected:
   std::vector<int> m_a;       // Workspace
   std::string      m_result;  // Result as string representation of a decimal number
   double           m_ndig;    // Number of digits computed (taken from raw data)
-  double           m_last8;   // Last 8 digits of result (for illustration)
+  double           m_last5;   // Last 5 digits of result (for illustration)
 
   virtual int  DefineVariables( bool remove );
 };
