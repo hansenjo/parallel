@@ -19,6 +19,7 @@
 #include <memory>
 #include <thread>
 #include <chrono>
+#include <ctime>
 
 // For output module
 #include <fstream>
@@ -30,6 +31,8 @@
 using namespace std;
 using namespace ThreadUtil;
 using namespace boost::iostreams;
+using HighResClock = std::chrono::high_resolution_clock;
+using ClockTime_t  = std::chrono::duration<double, std::milli>;
 
 // Definitions of global items declared in Podd.h
 
@@ -42,11 +45,21 @@ static int delay_us = 0;
 static bool order_events = false;
 static bool allow_sync_events = false;
 
+static mutex time_sum_mutex;
+static ClockTime_t analysis_realtime_sum;
+static ClockTime_t output_realtime_sum;
+
 template<typename Context_t>
 class AnalysisWorker {
+private:
+  ClockTime_t m_time_spent;
+
 public:
+  AnalysisWorker() : m_time_spent{} {}
+
   void run( QueuingThreadPool<Context_t>* pool ) {
     while( auto ctxPtr = pool->pop_work() ) {
+      auto start = HighResClock::now();
       Context_t& ctx = *ctxPtr;
 
       // Process all defined analysis objects
@@ -70,17 +83,28 @@ public:
       }
 
      skip: //TODO: add error status to context, let output skip bad results
+      auto stop = HighResClock::now();
+      m_time_spent += stop-start;
       pool->push_result( std::move(ctxPtr) );
     }
+
+    std::lock_guard time_lock(time_sum_mutex);
+    analysis_realtime_sum += m_time_spent;
   }
 };
 
 template<typename Context_t>
 class OutputWorker {
 private:
+  // Queue for finished contexts
+  ConcurrentQueue<Context_t>& fFreeQueue;
+  // Temporary storage for event ordering
+  std::map<size_t, std::unique_ptr<Context_t>> fBuffer;
+  ClockTime_t m_time_spent;
+
   // Data shared between all output threads
   struct SharedData {
-    SharedData() : fHeaderWritten(false), fLastWritten(0) {}
+    SharedData() : fLastWritten(0), fHeaderWritten(false) {}
     ~SharedData() { close(); }
     int open( const string& odat_file ) {
       outp.open(odat_file, ios::out | ios::trunc | ios::binary);
@@ -98,21 +122,40 @@ private:
     mutex output_mutex;
     ofstream outp;
     ostrm_t outs;
-    bool fHeaderWritten;
     size_t fLastWritten;
-  } __attribute__((aligned(128))) __attribute__((packed));
+    bool fHeaderWritten;
+  } __attribute__((aligned(128)));
 
+  void WriteEvent( ostrm_t& os, Context_t* ctx, bool do_header = false ) {
+    // Write output file data (or header names)
+    for( auto& var : ctx->outvars ) {
+      var->write(os, do_header);
+    }
+    if( debug > 1 && !do_header )
+      cout << "Wrote nev = " << ctx->nev << endl;
+  }
+  void WriteHeader( ostrm_t& os, Context_t* ctx ) {
+    // Write output file header
+    // <N = number of variables> N*<variable typ£££e> N*<variable name C-string>
+    // where
+    //  <variable type> = TTTNNNNN,
+    // with
+    //  TTT   = type (0=int, 1=unsigned, 2=float/double, 3=C-string)
+    //  NNNNN = number of bytes
+    uint32_t nvars = ctx->outvars.size();
+    os.write(reinterpret_cast<const char*>(&nvars), sizeof(nvars));
+    for( auto& var : ctx->outvars ) {
+      char type = var->GetType();
+      os.write(&type, sizeof(type));
+    }
+    WriteEvent(os, ctx, true);
+  }
   // Singleton shared data blob
   static inline SharedData fShared {};
 
-  // Queue for finished contexts
-  ConcurrentQueue<Context_t>& fFreeQueue;
-  // Temporary storage for event ordering
-  std::map<size_t, std::unique_ptr<Context_t>> fBuffer;
-
 public:
   OutputWorker( const string& odat_file, ConcurrentQueue<Context_t>& freeQueue )
-          : fFreeQueue(freeQueue) {
+          : fFreeQueue(freeQueue), fBuffer{}, m_time_spent{} {
     // Open output file and set up filter chain
     if( fShared.open(odat_file) != 0 ) {
       cerr << "Error opening output data file " << odat_file << endl;
@@ -121,7 +164,7 @@ public:
   }
 
   OutputWorker( const OutputWorker& rhs )
-          : fFreeQueue(rhs.fFreeQueue), fBuffer{} {
+          : fFreeQueue(rhs.fFreeQueue), fBuffer{}, m_time_spent{} {
     // Copy constructor. Called when used in std::thread
   }
 
@@ -129,6 +172,7 @@ public:
 
   void run( QueuingThreadPool<Context_t>* pool ) {
     while( auto ctxPtr = pool->pop_result() ) {
+      auto start = HighResClock::now();
 #ifdef EVTORDER
       Context_t& ctx = *ctxPtr;
 #endif
@@ -180,35 +224,13 @@ public:
         if( order_events )
           ctx.UnmarkActive();
 #endif
+        auto stop = HighResClock::now();
+        m_time_spent += stop-start;
         fFreeQueue.push( std::move(ctxPtr) );
       }
     }
-  }
-
-private:
-  void WriteEvent( ostrm_t& os, Context_t* ctx, bool do_header = false ) {
-    // Write output file data (or header names)
-    for( auto& var : ctx->outvars ) {
-      var->write(os, do_header);
-    }
-    if( debug > 0 && !do_header )
-      cout << "Wrote nev = " << ctx->nev << endl;
-  }
-  void WriteHeader( ostrm_t& os, Context_t* ctx ) {
-    // Write output file header
-    // <N = number of variables> N*<variable type> N*<variable name C-string>
-    // where
-    //  <variable type> = TTTNNNNN,
-    // with
-    //  TTT   = type (0=int, 1=unsigned, 2=float/double, 3=C-string)
-    //  NNNNN = number of bytes
-    uint32_t nvars = ctx->outvars.size();
-    os.write(reinterpret_cast<const char*>(&nvars), sizeof(nvars));
-    for( auto& var : ctx->outvars ) {
-      char type = var->GetType();
-      os.write(&type, sizeof(type));
-    }
-    WriteEvent(os, ctx, true);
+    std::lock_guard time_lock(time_sum_mutex);
+    output_realtime_sum += m_time_spent;
   }
 };
 
@@ -234,7 +256,7 @@ static void usage() {
        << "where options are:" << endl
        << " [ -c odef_file ]\tread output definitions from odef_file"
        << " (default = input_file.odef)" << endl
-       << " [ -o outfile ]\t\twrite output to odat_file"
+       << " [ -o outfile ]\t\twrite output to output_file"
        << " (default = input_file.odat)" << endl
        << " [ -d debug_level ]\tset debug level" << endl
        << " [ -n nev_max ]\t\tset max number of events" << endl
@@ -249,49 +271,53 @@ static void usage() {
   exit(255);
 }
 
-int main( int argc, char* const* argv )
+struct Config {
+  Config() : nev_max(std::numeric_limits<size_t>::max()), nthreads(0), mark(false) {}
+  string input_file, odef_file, output_file;
+  size_t nev_max;
+  unsigned int nthreads;
+  bool mark;
+} __attribute__((aligned(128)));
+
+// Parse command line
+void get_args(int argc, char* const* argv, Config& cfg )
 {
   prgname = argv[0];
   if( prgname.size() >= 2 && prgname.substr(0, 2) == "./" )
     prgname.erase(0, 2);
 
-  // Parse command line
-  size_t nev_max = std::numeric_limits<size_t>::max();
-  bool mark = false;
-  string input_file, odef_file, odat_file;
-  unsigned int nthreads = 0;
-
   int opt;
   while( (opt = getopt(argc, argv, "c:d:n:o:j:y:e:zmh")) != -1 ) {
     switch( opt ) {
       case 'c':
-        odef_file = optarg;
+        cfg.odef_file = optarg;
         break;
       case 'd':
-        debug = atoi(optarg);
+        debug = stoi(optarg);
         break;
       case 'n':
-        nev_max = atoi(optarg);
+        cfg.nev_max = stoi(optarg);
         break;
       case 'o':
-        odat_file = optarg;
+        cfg.output_file = optarg;
         break;
-      case 'j': {
-        int i =  atoi(optarg);
-        if( i > 0 )
-          nthreads = i;
-        else {
-          cerr << "Invalid number of threads specified: " << i
-               << ", assuming 1";
-          nthreads = 1;
+      case 'j':
+        {
+          int i =  stoi(optarg);
+          if( i > 0 )
+            cfg.nthreads = i;
+          else {
+            cerr << "Invalid number of threads specified: " << i
+                 << ", assuming 1";
+            cfg.nthreads = 1;
           }
         }
         break;
       case 'y':
-        delay_us = atoi(optarg);
+        delay_us = stoi(optarg);
         break;
 #ifdef EVTORDER
-      case 'e':
+        case 'e':
         if( optarg && !strcmp(optarg, "strict") ) {
           order_events = true;
           allow_sync_events = true;
@@ -306,7 +332,7 @@ int main( int argc, char* const* argv )
         compress_output = 1;
         break;
       case 'm':
-        mark = true;
+        cfg.mark = true;
         break;
       case 'h':
       default:
@@ -318,18 +344,31 @@ int main( int argc, char* const* argv )
     cerr << "Input file name missing" << endl;
     usage();
   }
-  input_file = argv[optind];
+  cfg.input_file = argv[optind];
+}
 
-  default_names(input_file, odef_file, odat_file);
+// Main program
+int main( int argc, char* const* argv )
+{
+  Config cfg;
+  get_args(argc, argv, cfg);
+
+  default_names(cfg.input_file, cfg.odef_file, cfg.output_file);
 
   if( debug > 0 ) {
-    cout << "input_file = " << input_file << endl;
-    cout << "odef_file = " << odef_file << endl;
-    cout << "odat_file = " << odat_file << endl;
-    cout << "compress_output = " << compress_output << endl;
-    cout << "order_events = " << order_events << endl;
+    cout << "input_file  = " << cfg.input_file  << endl;
+    cout << "odef_file   = " << cfg.odef_file   << endl;
+    cout << "output_file = " << cfg.output_file << endl;
+    cout << "compress_output   = " << compress_output   << endl;
+    cout << "order_events      = " << order_events      << endl;
     cout << "allow_sync_events = " << allow_sync_events << endl;
   }
+
+  // Start timers
+  timespec start_clock, stop_clock, clock_diff;
+  clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &start_clock);
+  auto start = HighResClock::now();
+  auto init_start = HighResClock::now();
 
   // Set up analysis objects
   detlst_t gDets;
@@ -338,7 +377,7 @@ int main( int argc, char* const* argv )
   gDets.push_back( make_unique<DetectorTypeC>("detC", 3));
 
   // Set up thread contexts. Copy analysis objects.
-  unsigned int ncores = GetThreadCount();
+  unsigned int ncores = GetThreadCount(), nthreads = cfg.nthreads;
   if( nthreads > 2*ncores )
     nthreads = 2*ncores;
   if( nthreads == 0 )
@@ -360,7 +399,7 @@ int main( int argc, char* const* argv )
     //     detectors
     // (2) DefineVariables: do in threads
     if( !ctx.is_init ) {
-      if( ctx.Init(odef_file) != 0 )
+      if( ctx.Init(cfg.odef_file) != 0 )
         break;
     }
     freeQueue.push( std::move(ctxPtr) );
@@ -371,9 +410,9 @@ int main( int argc, char* const* argv )
   //   PrintVarList(gVars);
 
   // Configure output
-  if( compress_output > 0 && odat_file.size() > 3
-      && odat_file.substr(odat_file.size() - 3) != ".gz" )
-    odat_file.append(".gz");
+  if( compress_output > 0 && cfg.output_file.size() > 3
+      && cfg.output_file.substr(cfg.output_file.size() - 3) != ".gz" )
+    cfg.output_file.append(".gz");
 
   // Set up nthreads analysis threads. Finished Contexts go into the output queue
   AnalysisWorker<Context> analysisWorker;
@@ -385,25 +424,27 @@ int main( int argc, char* const* argv )
 #else
   // Single output thread
   std::thread output(&OutputWorker<Context>::run,
-                     OutputWorker<Context>(odat_file, freeQueue), &pool);
+                     OutputWorker<Context>(cfg.output_file, freeQueue), &pool);
 #endif
+
+  ClockTime_t init_duration = HighResClock::now() - init_start;
 
 #ifdef EVTORDER
   bool doing_sync = false;
 #endif
   size_t nev = 0;
   if( debug > 0 )
-    cout << "Starting event loop, nev_max = " << nev_max << endl;
+    cout << "Starting event loop, nev_max = " << cfg.nev_max << endl;
 
   // Open input
-  DataFile inp(input_file);
+  DataFile inp(cfg.input_file);
   if( inp.Open() )
     return 2;
 
   // Loop: Read one event and hand it off to an idle thread
-  while( inp.ReadEvent() == 0 && nev < nev_max ) {
+  while( inp.ReadEvent() == 0 && nev < cfg.nev_max ) {
     ++nev;
-    if( mark && (nev % 1000) == 0 )
+    if( cfg.mark && (nev % 1000) == 0 )
       cout << nev << endl;
     // Main processing
     if( debug > 1 )
@@ -449,5 +490,18 @@ int main( int argc, char* const* argv )
   output.join();
 #endif
 
+  // Total wall time
+  ClockTime_t run_duration = HighResClock::now() - start;
+  // Total CPU time
+  clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &stop_clock);
+  timespec_diff( &stop_clock, &start_clock, &clock_diff );
+  ClockTime_t cpu_usage( std::chrono::seconds(clock_diff.tv_sec) +
+                         std::chrono::nanoseconds(clock_diff.tv_nsec) );
+  cout << "Timing analysis:" << endl;
+  cout << "Init:      " << init_duration.count()         << " ms" << endl;
+  cout << "Analysis:  " << analysis_realtime_sum.count() << " ms" << endl;
+  cout << "Output:    " << output_realtime_sum.count()   << " ms" << endl;
+  cout << "Total CPU: " << cpu_usage.count()             << " ms" << endl;
+  cout << "Real:      " << run_duration.count()          << " ms" << endl;
   return 0;
 }
