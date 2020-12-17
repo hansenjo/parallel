@@ -24,6 +24,13 @@ Database::Database( const string& filename ) : m_is_ready{false}
   Open(filename);
 }
 
+void Database::Item::print( ostream& os ) const
+{
+  if( !module.empty() )
+    os << module << ".";
+  os << key << " = " << value << endl;
+}
+
 // Read database file, if it exists. Add its key/value pairs to internal cache.
 size_t Database::Append( const string& filename )
 {
@@ -60,7 +67,8 @@ size_t Database::Append( const string& filename )
   return m_items.size();
 }
 
-std::optional<double> Database::Get( const string& key, const string& module, int search )
+std::optional<double> Database::Get( const string& key, const string& module,
+                                     int search ) const
 {
   optional<double> ret;
   auto it = find_if( ALL(m_items), [&key,&module](const Item& e) {
@@ -76,9 +84,60 @@ std::optional<double> Database::Get( const string& key, const string& module, in
   return ret;
 }
 
+std::optional<double> Database::Erase( const string& key, const string& module )
+{
+  optional<double> ret;
+  auto it = find_if( ALL(m_items), [&key,&module](const Item& e) {
+    return (e.key == key && e.module == module);
+  });
+  if( it != m_items.end() ) {
+    ret = it->value;
+    m_items.erase(it);
+  }
+  return ret;
+}
+
+bool Database::Set( const string& key, const string& module, double val )
+{
+  bool ret = false;
+  auto it = find_if( ALL(m_items), [&key,&module](const Item& e) {
+    return (e.key == key && e.module == module);
+  });
+  if( it == m_items.end() ) {
+    ret = true;
+    m_items.emplace_back(key,module,val);
+  } else {
+    it->value = val;
+  }
+  return ret;
+}
+
+bool Database::Set( Item& item )
+{
+  bool ret = false;
+  auto it = find_if( ALL(m_items), [&item](const Item& e) {
+    return (e.key == item.key && e.module == item.module);
+  });
+  if( it == m_items.end() ) {
+    m_items.push_back(std::move(item));
+    ret = true;
+  } else {
+    swap(*it,item);
+  }
+  return ret;
+}
+
+void Database::Print( ostream& os ) const
+{
+  for_each( ALL(m_items), [&os](auto& e) {
+    os << "DB: ";
+    e.print(os);
+  });
+}
+
 // Parse the full key into module.key parts.
 // Returns the number of components found between dots.
-int Database::ParseDBkey( const string& fullkey, Item& item )
+int Database::ParseDBkey( const string& fullkey, Item& item ) const
 {
   char_separator<char> dot(".");
   tokenizer<char_separator<char>> parts(fullkey, dot);
@@ -130,5 +189,10 @@ void Database::ParseDBline( const string& line )
   if( i != 3 )
     throw bad_db_syntax(line);
 
-  m_items.push_back(std::move(item));
+  // Check if this item already exists
+  bool ins = Set(item);
+  if( !ins ) {
+    cerr << "Warning: overwriting existing database key: ";
+    item.print(cerr);
+  }
 }

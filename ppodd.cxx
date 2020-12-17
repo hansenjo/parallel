@@ -369,6 +369,11 @@ int main( int argc, char* const* argv )
 
   // Read database, if any
   database.Open(cfg.db_file);
+  if( auto sz = database.GetSize(); sz > 0 ) {
+    cout << "Read " << sz << " parameters from database " << cfg.db_file << endl;
+    if( debug > 0 )
+      database.Print();
+  }
 
   // Start timers
   timespec start_clock{}, stop_clock{}, clock_diff{};
