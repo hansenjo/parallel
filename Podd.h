@@ -7,23 +7,40 @@
 #include <list>
 #include <memory>
 #include <string>
+#include <limits>
 
+// Typedefs for variable and detector lists
 class Variable;
 class Detector;
-
 using varlst_t = std::list<std::unique_ptr<Variable>>;
 using detlst_t = std::vector<std::unique_ptr<Detector>>;
 
+// Debug level
 extern int debug;
 
+// Program configuration
+struct Config {
+  Config() : nev_max(std::numeric_limits<size_t>::max()), nthreads(0), mark(false) {}
+  void default_names();
+
+  std::string input_file, odef_file, output_file, db_file;
+  size_t nev_max;
+  unsigned int nthreads;
+  bool mark;
+} __attribute__((aligned(128)));
+
+extern Config cfg;
+
+// Name, description and value of an analysis result
 struct VarDef_t {
   std::string name;
   std::string note;
   const double* loc;
-};
+} __attribute__((aligned(64)));
+
 enum { kDefine = false, kRemove = true };
 
-// Define global variables from list of definitions in 'defs'.
+// Define analysis results variables from list of definitions in 'defs'.
 // Prepend 'prefix', if any, to all variable names.
 // Newly defined variables are placed in the variable list 'varlst'.
 // If 'remove' is true, remove any existing variables instead.

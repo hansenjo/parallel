@@ -12,7 +12,6 @@
 #include "Context.h"
 
 #include <iostream>
-#include <limits>
 #include <unistd.h>
 #include <algorithm>  // for std::swap
 #include <map>
@@ -37,6 +36,7 @@ using ClockTime_t  = std::chrono::duration<double, std::milli>;
 // Definitions of global items declared in Podd.h
 
 int debug = 0;
+Config cfg;
 
 // Shared configuration data
 static string prgname;
@@ -126,6 +126,9 @@ private:
     bool fHeaderWritten;
   } __attribute__((aligned(128)));
 
+  // Singleton shared data blob
+  static inline SharedData fShared {};
+
   void WriteEvent( ostrm_t& os, Context_t* ctx, bool do_header = false ) {
     // Write output file data (or header names)
     for( auto& var : ctx->outvars ) {
@@ -150,8 +153,6 @@ private:
     }
     WriteEvent(os, ctx, true);
   }
-  // Singleton shared data blob
-  static inline SharedData fShared {};
 
 public:
   OutputWorker( const string& odat_file, ConcurrentQueue<Context_t>& freeQueue )
@@ -234,21 +235,27 @@ public:
   }
 };
 
-static void default_names( string infile, string& odef, string& odat ) {
-  // If not given, set defaults for odef and output files
-  if( infile.empty() || !(odef.empty() || odat.empty()) )
+// Set any unset filenames to defaults (= input file name + extension)
+void Config::default_names() {
+  // If not given, set defaults for odef, db and output files
+  if( input_file.empty() ||
+      !(odef_file.empty() || output_file.empty() || db_file.empty()) )
     return;
+  string infile{ input_file };
+  // Drop input file filename extension
   string::size_type pos = infile.rfind('.');
   if( pos != string::npos )
     infile.erase(pos);
-  // Ignore any directory component in the file name
+  // Ignore any directory component of the input file name
   pos = infile.rfind('/');
-  if( pos != string::npos && pos + 1 < infile.size() )
-    infile.erase(0, pos + 1);
-  if( odef.empty() )
-    odef = infile + ".odef";
-  if( odat.empty() )
-    odat = infile + ".odat";
+  if( pos != string::npos && pos+1 < infile.size() )
+    infile.erase(0, pos+1);
+  if( odef_file.empty() )
+    odef_file = infile + ".odef";
+  if( output_file.empty() )
+    output_file = infile + ".out";
+  if( db_file.empty() )
+    db_file = infile + ".db";
 }
 
 static void usage() {
@@ -258,6 +265,8 @@ static void usage() {
        << " (default = input_file.odef)" << endl
        << " [ -o outfile ]\t\twrite output to output_file"
        << " (default = input_file.odat)" << endl
+       << " [ -b db_file ]\tuse database file db_file"
+       << " (default = input_file.db)" << endl
        << " [ -d debug_level ]\tset debug level" << endl
        << " [ -n nev_max ]\t\tset max number of events" << endl
        << " [ -j nthreads ]\tcreate at most nthreads (default = n_cpus)" << endl
@@ -271,24 +280,19 @@ static void usage() {
   exit(255);
 }
 
-struct Config {
-  Config() : nev_max(std::numeric_limits<size_t>::max()), nthreads(0), mark(false) {}
-  string input_file, odef_file, output_file;
-  size_t nev_max;
-  unsigned int nthreads;
-  bool mark;
-} __attribute__((aligned(128)));
-
 // Parse command line
-void get_args(int argc, char* const* argv, Config& cfg )
+void get_args(int argc, char* const* argv )
 {
   prgname = argv[0];
   if( prgname.size() >= 2 && prgname.substr(0, 2) == "./" )
     prgname.erase(0, 2);
 
   int opt;
-  while( (opt = getopt(argc, argv, "c:d:n:o:j:y:e:zmh")) != -1 ) {
+  while( (opt = getopt(argc, argv, "b:c:d:n:o:j:y:e:zmh")) != -1 ) {
     switch( opt ) {
+      case 'b':
+        cfg.db_file = optarg;
+        break;
       case 'c':
         cfg.odef_file = optarg;
         break;
@@ -345,15 +349,13 @@ void get_args(int argc, char* const* argv, Config& cfg )
     usage();
   }
   cfg.input_file = argv[optind];
+  cfg.default_names();
 }
 
 // Main program
 int main( int argc, char* const* argv )
 {
-  Config cfg;
-  get_args(argc, argv, cfg);
-
-  default_names(cfg.input_file, cfg.odef_file, cfg.output_file);
+  get_args(argc, argv);
 
   if( debug > 0 ) {
     cout << "input_file  = " << cfg.input_file  << endl;
@@ -365,7 +367,7 @@ int main( int argc, char* const* argv )
   }
 
   // Start timers
-  timespec start_clock, stop_clock, clock_diff;
+  timespec start_clock{}, stop_clock{}, clock_diff{};
   clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &start_clock);
   auto start = HighResClock::now();
   auto init_start = HighResClock::now();
@@ -399,8 +401,9 @@ int main( int argc, char* const* argv )
     //     detectors
     // (2) DefineVariables: do in threads
     if( !ctx.is_init ) {
-      if( ctx.Init(cfg.odef_file) != 0 )
-        break;
+      if( ctx.Init() != 0 )
+        // Die on failure to initialize (usually database read error)
+        return 1;
     }
     freeQueue.push( std::move(ctxPtr) );
   }

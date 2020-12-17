@@ -7,12 +7,13 @@
 #include "DetectorTypeC.h"
 #include "Decoder.h"
 #include <cstdlib>
+#include <stdexcept>
 //#include <cassert>
 
 using namespace std;
 
 DetectorTypeC::DetectorTypeC( const string& name, int imod )
-  : Detector(name, imod), m_ndig(0), m_last5(0)
+  : Detector(name, imod), m_ndig(0), m_last5(0), m_scale(1.0)
 {
   type = "C";
 
@@ -53,7 +54,7 @@ int DetectorTypeC::Analyze()
 
   int n = 0;
   if( !data.empty() )
-    n = int(data[0]);
+    n = int(data[0]*m_scale);
   if( n < 1 )
     n = 10;
 
@@ -125,4 +126,13 @@ int DetectorTypeC::DefineVariables( bool do_remove )
           {"last8", "Value of last 5 digits",     &m_last5},
   };
   return DefineVarsFromList(defs, GetName(), fVars, do_remove);
+}
+
+int DetectorTypeC::ReadDatabase( bool shared )
+{
+  int status = Detector::ReadDatabase(shared);
+  if( status )
+    return status;
+
+  return 0;
 }

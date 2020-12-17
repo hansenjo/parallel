@@ -27,7 +27,7 @@ Context::~Context()
   assert( !is_active );
 }
 
-int Context::Init( const string& odef_file )
+int Context::Init()
 {
   // Initialize current context
 
@@ -49,12 +49,12 @@ int Context::Init( const string& odef_file )
   // Read output definitions & configure output
   outvars.push_back( make_unique<EventNumberVariable>(nev) );
 
-  if( odef_file.empty() )
+  if( cfg.odef_file.empty() )
     return 2;
 
-  ifstream inp(odef_file);
+  ifstream inp(cfg.odef_file);
   if( !inp ) {
-    cerr << "Error opening output definition file " << odef_file << endl;
+    cerr << "Error opening output definition file " << cfg.odef_file << endl;
     return 2;
   }
   string line;
@@ -75,7 +75,7 @@ int Context::Init( const string& odef_file )
 
   if( outvars.empty() ) {
     // Noting to do
-    cerr << "No output variables defined. Check " << odef_file << endl;
+    cerr << "No output variables defined. Check " << cfg.odef_file << endl;
     return 3;
   }
 

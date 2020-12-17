@@ -6,6 +6,7 @@ lib*.dylib*
 # Input files
 *.dat
 *.odef
+*.db
 
 # Generated files
 *.odat
