@@ -3,9 +3,10 @@
 // Simple "detector" class, doing computation of pi as an example
 // of a time-consuming task
 
-#include "Podd.h"
 #include "DetectorTypeC.h"
+#include "Podd.h"
 #include "Decoder.h"
+#include "Database.h"
 #include <cstdlib>
 #include <stdexcept>
 //#include <cassert>
@@ -133,6 +134,11 @@ int DetectorTypeC::ReadDatabase( bool shared )
   int status = Detector::ReadDatabase(shared);
   if( status )
     return status;
+
+  // See if the database contains the key "detC.scale".
+  // If so, assign its value to m_scale. Otherwise m_scale = 1.0
+  auto val = database.Get("scale",name);
+  m_scale = val.value_or(1.0);
 
   return 0;
 }

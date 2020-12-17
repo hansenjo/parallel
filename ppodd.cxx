@@ -10,6 +10,7 @@
 #include "Util.h"
 #include "ThreadPool.hpp"
 #include "Context.h"
+#include "Database.h"
 
 #include <iostream>
 #include <unistd.h>
@@ -365,6 +366,9 @@ int main( int argc, char* const* argv )
     cout << "order_events      = " << order_events      << endl;
     cout << "allow_sync_events = " << allow_sync_events << endl;
   }
+
+  // Read database, if any
+  database.Open(cfg.db_file);
 
   // Start timers
   timespec start_clock{}, stop_clock{}, clock_diff{};
