@@ -27,8 +27,10 @@ protected:
   std::string      m_result;  // Result as string representation of a decimal number
   double           m_ndig;    // Number of digits computed (taken from raw data)
   double           m_last5;   // Last 5 digits of result (for illustration)
+  double           m_scale;   // Scale factor for number of digits input value
 
   virtual int  DefineVariables( bool remove );
+  virtual int  ReadDatabase( bool shared );
 };
 
 #endif

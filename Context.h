@@ -18,7 +18,7 @@ public:
   Context( const Context& context );
   ~Context();
 
-  int Init( const std::string& odef_file );
+  int Init();
 #ifdef EVTORDER
   void MarkActive();
   void UnmarkActive();

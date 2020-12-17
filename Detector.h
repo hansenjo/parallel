@@ -3,7 +3,7 @@
 #ifndef PPODD_DETECTOR
 #define PPODD_DETECTOR
 
-
+#include "Podd.h"
 #include <string>
 #include <vector>
 #include <memory>
@@ -17,7 +17,7 @@ public:
 
   virtual void Clear();
   [[nodiscard]] virtual std::unique_ptr<Detector> Clone() const = 0;
-  virtual int  Init( bool shared );
+  virtual int Init( bool shared );
   virtual int  Decode( Decoder& evdata );
   virtual int  Analyze() = 0;
   virtual void Print() const;
@@ -51,8 +51,22 @@ protected:
 
   // Read database for this detector.
   // If 'shared' is true, sets parameters shared among threads.
-  // To be implemented by derived classes.
+  // The base class implements reading key/value pairs
   virtual int ReadDatabase( bool shared );
+
+  // A key/value pair read from the database
+  struct DBitem {
+    std::string module;
+    std::string key;
+    double value{};
+  } __attribute__((aligned(64)));
+  // Collection of key/value pairs from read from the database.
+  // Derived classes may extract their parameters from these items.
+  std::vector<DBitem> dbitems;
+
+private:
+  int  ParseDBkey( const std::string& line, DBitem& item );
+  void ParseDBline( const std::string& line );
 };
 
 #endif
