@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <string>
+#include <memory>
 
 using evbuf_t = uint32_t;
 using evbuf_ptr_t = std::unique_ptr<evbuf_t[]>;

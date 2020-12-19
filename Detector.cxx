@@ -4,6 +4,7 @@
 #include "Decoder.h"
 #include "Variable.h"
 #include <iostream>
+#include <algorithm>
 
 using namespace std;
 
