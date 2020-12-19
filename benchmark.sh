@@ -44,8 +44,8 @@ fi
 echo "Benchmarking $PPODD"
 
 # Scratch file and result file
-TMPF=/tmp/check-speed.tmp
-RESF=check-speed.out
+TMPF=/tmp/ppodd-benchmark.tmp
+RESF=benchmark.out
 rm -f $RESF $TMPF
 
 echo $NEV > $RESF
