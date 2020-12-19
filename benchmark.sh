@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Benchmark scaling performance of multithreaded toy analyzer ppodd
 
+# Number of logical CPUs on this system
+NLOGICAL=$(getconf _NPROCESSORS_ONLN)
 # Maximum number of analysis threads. Oversubscribe to verify saturation behavior
-N=$(($(nproc)+2))
+N=$((NLOGICAL+2))
 
 # Number of events per run
 if [ $# -ge 1 ]; then
@@ -14,7 +16,7 @@ NMARK=$((NEV/50))
 
 [ -n "$NMARK" ] && MARK="-m $NMARK"
 
-# Timing command
+# Arguments for getting memory usage from time(1)
 osname=$(uname -s)
 if [ "$osname" = "Linux" ]; then
   TARGS="-f"
@@ -42,6 +44,7 @@ if [ -z "$PPODD" ]; then
   exit
 fi
 echo "Benchmarking $PPODD"
+echo "Found $NLOGICAL logical CPUs"
 
 # Scratch file and result file
 TMPF=/tmp/ppodd-benchmark.tmp
