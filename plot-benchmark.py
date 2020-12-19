@@ -15,7 +15,7 @@ t_cpu = np.array([], dtype=float)
 # Memory usage: maximum resident set size (bytes)
 memusage = np.array([], dtype=float)
 
-infile = open('check-speed.out', 'r')
+infile = open('benchmark.out', 'r')
 
 # Number of events analyzed
 nev = int(infile.readline())
@@ -62,7 +62,7 @@ plt.annotate(f"{eff_ncores}% eff", (j[ncores - 1], real_rate[ncores - 1]),
              textcoords="offset points", xytext=(5, -5), ha="left", va="top")
 plt.annotate(f"{eff_nthreads}% eff", (j[ncores * 2 - 1], real_rate[ncores * 2 - 1]),
              textcoords="offset points", xytext=(5, -5), ha="left", va="top")
-plt.savefig("plot-rates.pdf")
+plt.savefig("benchmark-rates.pdf")
 
 plt.figure(1)
 plt.title('Parallel Podd Prototype Memory Usage')
@@ -77,6 +77,6 @@ plt.legend()
 MB_per_thread = round(predict[1], 2)
 plt.annotate(f"{MB_per_thread} MB/thread", (j[ncores - 1], predict(ncores)),
              textcoords="offset points", xytext=(5, -5), ha="left", va="top")
-plt.savefig("plot-memusage.pdf")
+plt.savefig("benchmark-memusage.pdf")
 
 plt.show()
