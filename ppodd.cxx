@@ -13,6 +13,7 @@
 #include "Database.h"
 
 #include <iostream>
+#include <sstream>
 #include <unistd.h>
 #include <algorithm>  // for std::swap
 #include <map>
@@ -20,6 +21,8 @@
 #include <thread>
 #include <chrono>
 #include <ctime>
+#include <cstdlib>
+#include <stdexcept>
 
 // For output module
 #include <fstream>
@@ -266,7 +269,7 @@ static void usage() {
        << " (default = input_file.odef)" << endl
        << " [ -o outfile ]\t\twrite output to output_file"
        << " (default = input_file.odat)" << endl
-       << " [ -b db_file ]\tuse database file db_file"
+       << " [ -b db_file ]\t\tuse database file db_file"
        << " (default = input_file.db)" << endl
        << " [ -d debug_level ]\tset debug level" << endl
        << " [ -n nev_max ]\t\tset max number of events" << endl
@@ -275,7 +278,7 @@ static void usage() {
 #ifdef EVTORDER
        << " [ -e (sync|strict) ]\tPreserve event order" << endl
 #endif
-       << " [ -m ]\t\t\tMark progress" << endl
+       << " [ -m interval ]\tMark progress at given intervals" << endl
        << " [ -z ]\t\t\tCompress output with gzip" << endl
        << " [ -h ]\t\t\tPrint this help message" << endl;
   exit(255);
@@ -285,30 +288,32 @@ static void usage() {
 void get_args(int argc, char* const* argv )
 {
   prgname = argv[0];
-  if( prgname.size() >= 2 && prgname.substr(0, 2) == "./" )
-    prgname.erase(0, 2);
+  // Drop path form program name
+  if( string::size_type pos = prgname.rfind('/');
+          pos != string::npos && pos+1 < prgname.length() )
+    prgname.erase(0, pos+1);
 
-  int opt;
-  while( (opt = getopt(argc, argv, "b:c:d:n:o:j:y:e:zmh")) != -1 ) {
-    switch( opt ) {
-      case 'b':
-        cfg.db_file = optarg;
-        break;
-      case 'c':
-        cfg.odef_file = optarg;
-        break;
-      case 'd':
-        debug = stoi(optarg);
-        break;
-      case 'n':
-        cfg.nev_max = stoi(optarg);
-        break;
-      case 'o':
-        cfg.output_file = optarg;
-        break;
-      case 'j':
-        {
-          int i =  stoi(optarg);
+  try {
+    int opt;
+    while( (opt = getopt(argc, argv, "b:c:d:n:o:j:y:e:m:zmh")) != -1 ) {
+      switch( opt ) {
+        case 'b':
+          cfg.db_file = optarg;
+          break;
+        case 'c':
+          cfg.odef_file = optarg;
+          break;
+        case 'd':
+          debug = stoi(optarg);
+          break;
+        case 'n':
+          cfg.nev_max = stoi(optarg);
+          break;
+        case 'o':
+          cfg.output_file = optarg;
+          break;
+        case 'j': {
+          int i = stoi(optarg);
           if( i > 0 )
             cfg.nthreads = i;
           else {
@@ -317,33 +322,39 @@ void get_args(int argc, char* const* argv )
             cfg.nthreads = 1;
           }
         }
-        break;
-      case 'y':
-        delay_us = stoi(optarg);
-        break;
+          break;
+        case 'y':
+          delay_us = stoi(optarg);
+          break;
 #ifdef EVTORDER
-        case 'e':
-        if( optarg && !strcmp(optarg, "strict") ) {
-          order_events = true;
-          allow_sync_events = true;
-        } else if( optarg && !strcmp(optarg, "sync") ) {
-          allow_sync_events = true;
-        } else {
-          usage();
-        }
-        break;
+          case 'e':
+          if( !optarg ) usage();
+          if( !strcmp(optarg, "strict") ) {
+            order_events = true;
+            allow_sync_events = true;
+          } else if( !strcmp(optarg, "sync") ) {
+            allow_sync_events = true;
+          } else {
+            usage();
+          }
+          break;
 #endif
-      case 'z':
-        compress_output = 1;
-        break;
-      case 'm':
-        cfg.mark = true;
-        break;
-      case 'h':
-      default:
-        usage();
-        break;
+        case 'z':
+          compress_output = 1;
+          break;
+        case 'm':
+          cfg.mark = stoi(optarg);
+          break;
+        case 'h':
+        default:
+          usage();
+          break;
+      }
     }
+  }
+  catch( const exception& e ) {
+    cerr << "Error: " << e.what() << endl;
+    usage();
   }
   if( optind >= argc ) {
     cerr << "Input file name missing" << endl;
@@ -351,6 +362,18 @@ void get_args(int argc, char* const* argv )
   }
   cfg.input_file = argv[optind];
   cfg.default_names();
+}
+
+static void mark_progress( size_t nev )
+{
+  if( cfg.mark != 0 ) {
+    auto d = lldiv(nev,cfg.mark);
+    if( d.rem == 0 ) {
+      if( nev > cfg.mark )
+        cout << "..";
+      cout << nev << flush;
+    }
+  }
 }
 
 // Main program
@@ -456,11 +479,11 @@ int main( int argc, char* const* argv )
   // Loop: Read one event and hand it off to an idle thread
   while( inp.ReadEvent() == 0 && nev < cfg.nev_max ) {
     ++nev;
-    if( cfg.mark && (nev % 1000) == 0 )
-      cout << nev << endl;
-    // Main processing
     if( debug > 1 )
       cout << "Event " << nev << endl;
+    else
+      mark_progress(nev);
+    // Main processing
 
     auto ctxPtr = freeQueue.next();
     Context& ctx = *ctxPtr;
@@ -484,6 +507,8 @@ int main( int argc, char* const* argv )
 #endif
     pool.push_work(std::move(ctxPtr));
   }
+  if( cfg.mark != 0 && nev >= cfg.mark )
+    cout << endl;
   if( debug > 0 ) {
     cout << "Normal end of file" << endl;
     cout << "Read " << nev << " events" << endl;

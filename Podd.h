@@ -20,13 +20,13 @@ extern int debug;
 
 // Program configuration
 struct Config {
-  Config() : nev_max(std::numeric_limits<size_t>::max()), nthreads(0), mark(false) {}
+  Config() : nev_max(std::numeric_limits<size_t>::max()), nthreads(0), mark(0) {}
   void default_names();
 
   std::string input_file, odef_file, output_file, db_file;
   size_t nev_max;
   unsigned int nthreads;
-  bool mark;
+  unsigned int mark;
 } __attribute__((aligned(128)));
 
 extern Config cfg;
