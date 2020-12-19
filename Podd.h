@@ -47,9 +47,9 @@ enum { kDefine = false, kRemove = true };
 // Returns number of variables defined.
 int DefineVarsFromList( const std::vector<VarDef_t>& defs,
                         const std::string& prefix,
-                        varlst_t* varlst, bool remove = false );
+                        const std::shared_ptr<varlst_t>& varlst, bool remove = false );
 
-void PrintVarList( varlst_t& varlst );
+void PrintVarList( const std::shared_ptr<varlst_t>& varlst );
 
 #define ALL(c) (c).begin(), (c).end()
 

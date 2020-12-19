@@ -22,7 +22,7 @@ public:
   virtual int  Analyze() = 0;
   virtual void Print() const;
 
-  void SetVarList( varlst_t& lst ) { fVars = &lst; }
+  void SetVarList( std::shared_ptr<varlst_t> lst ) { fVars = std::move(lst); }
 
   [[nodiscard]] const std::string& GetName() const { return name; }
   [[nodiscard]] const std::string& GetType() const { return type; }
@@ -38,7 +38,7 @@ protected:
   // Context that also holds this detector (see Context.h). Each detector
   // adds its particular variables to this list in the call to
   // DefineVariables at Init time.
-  varlst_t* fVars;
+  std::shared_ptr<varlst_t> fVars;
 
   // Define global variables holding analysis results.
   // Returns the number of variables defined.

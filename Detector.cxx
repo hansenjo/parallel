@@ -81,7 +81,7 @@ int Detector::ReadDatabase( bool /* shared */ ) {
 // Declared in Podd.h
 int DefineVarsFromList( const std::vector<VarDef_t>& defs,
                         const std::string& prefix,
-                        varlst_t* varlst, bool remove )
+                        const shared_ptr<varlst_t>& varlst, bool remove )
 {
   if( defs.empty() or (remove and (not varlst or varlst->empty())) )
     return 0;

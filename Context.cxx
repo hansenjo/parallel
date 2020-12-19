@@ -15,6 +15,7 @@ using namespace boost::algorithm;
 Context::Context()
   : is_init(false), is_active(false)
 {
+  variables = make_shared<varlst_t>();
 }
 
 Context::Context( const Context& )
@@ -34,11 +35,10 @@ int Context::Init()
   // Initialize detectors
   int err = 0;
   for( auto& det : detectors ) {
-    int status;
     // Link each of our detectors to our variable list
     det->SetVarList(variables);
     // Init() calls the detector's ReadDatabase and DefineVariables
-    if( (status = det->Init(false)) != 0 ) {
+    if( int status = det->Init(false); status != 0 ) {
       err = status;
       cerr << "Error initializing detector " << det->GetName() << endl;
     }
@@ -65,7 +65,7 @@ int Context::Init()
     trim(line);
     if( line.empty() )
       continue;
-    for( auto& var : variables ) {
+    for( auto& var : *variables ) {
       if( WildcardMatch(var->GetName(), line) )
 	outvars.push_back( make_unique<PlainVariable>(var.get()) );
     }

@@ -15,7 +15,8 @@
 class Context {
 public:
   Context();
-  Context( const Context& context );
+  Context( const Context& context ); //FIXME: but operator= is deleted?
+  Context& operator=( const Context& rhs ) = delete;
   ~Context();
 
   int Init();
@@ -30,7 +31,7 @@ public:
   evbuf_ptr_t evbuffer;  // Event buffer read from file
   Decoder   evdata;      // Decoded data
   detlst_t  detectors;   // Detectors with private event-by-event data
-  varlst_t  variables;   // Interface to analysis results
+  std::shared_ptr<varlst_t> variables;   // Interface to analysis results
   voutp_t   outvars;     // Output definitions
   size_t    nev{};       // Event number given to this thread
   size_t    iseq{};      // Event sequence number
@@ -44,8 +45,6 @@ private:
   static std::condition_variable fgAllDone;
   static int fgNactive;
 #endif
-
-  Context& operator=( const Context& rhs ) = delete;
 };
 
 #endif
