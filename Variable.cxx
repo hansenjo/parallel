@@ -21,7 +21,7 @@ void Variable::Print() const
 }
 
 // Declared in Podd.h
-void PrintVarList( varlst_t& varlst )
+void PrintVarList( const shared_ptr<varlst_t>& varlst )
 {
-  for_each( ALL(varlst), [](auto& var){ var->Print(); });
+  for_each( ALL(*varlst), [](auto& var){ var->Print(); });
 }
