@@ -7,8 +7,8 @@
 
 using EvDat_t = double;
 
-static const uint32_t MAXDATA = 16;
-static const uint32_t MAXMODULES = 8;
+static const int32_t MAXDATA = 16;
+static const int32_t MAXMODULES = 8;
 
 // For each event
 struct EventHeader {
