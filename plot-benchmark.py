@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
 
-import matplotlib.pyplot as plt
+import sys
 import numpy as np
+import matplotlib.pyplot as plt
+
+if len(sys.argv) > 1:
+    infilename = sys.argv[1]
+else:
+    infilename = "benchmark.out"
 
 # Number of analysis threads used
 j = np.array([], dtype=int)
@@ -15,7 +21,7 @@ t_cpu = np.array([], dtype=float)
 # Memory usage: maximum resident set size (bytes)
 memusage = np.array([], dtype=float)
 
-infile = open('benchmark.out', 'r')
+infile = open(infilename, 'r')
 
 # Number of events analyzed
 nev = int(infile.readline())
@@ -41,11 +47,16 @@ efficiency = 100. * real_rate / ideal_rate
 
 # Memory usage analysis
 memusage /= 1e6  # Convert to MB
-fit = np.polyfit(j, memusage, 1)
+mem_x = j[0: 2 * ncores - 1]
+mem_y = memusage[0: 2 * ncores - 1]
+fit = np.polyfit(mem_x, mem_y, 1)
+# chisq_dof = np.sum((np.polyval(fit, mem_x) - mem_y) ** 2) / (len(mem_x)-2)
+# print(f"chisq/dof = {chisq_dof}")
 predict = np.poly1d(fit)
 fit_memusage = predict(j)
 naive_memusage = memusage[0] * j  # Naive scaling, approximating independent processes (ignores sharing)
 
+# Plot results
 plt.figure(0)
 plt.xlabel('Number of analysis threads')
 plt.ylabel('Analysis Rate (Hz)')
