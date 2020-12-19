@@ -13,7 +13,6 @@
 #include "Database.h"
 
 #include <iostream>
-#include <sstream>
 #include <unistd.h>
 #include <algorithm>  // for std::swap
 #include <map>
@@ -46,8 +45,10 @@ Config cfg;
 static string prgname;
 static int compress_output = 0;
 static int delay_us = 0;
+#ifdef EVTORDER
 static bool order_events = false;
 static bool allow_sync_events = false;
+#endif
 
 static mutex time_sum_mutex;
 static ClockTime_t analysis_realtime_sum;
@@ -382,19 +383,22 @@ int main( int argc, char* const* argv )
   get_args(argc, argv);
 
   if( debug > 0 ) {
-    cout << "input_file  = " << cfg.input_file  << endl;
-    cout << "odef_file   = " << cfg.odef_file   << endl;
-    cout << "output_file = " << cfg.output_file << endl;
+    cout << "input_file        = " << cfg.input_file    << endl;
+    cout << "db_file           = " << cfg.db_file       << endl;
+    cout << "odef_file         = " << cfg.odef_file     << endl;
+    cout << "output_file       = " << cfg.output_file   << endl;
     cout << "compress_output   = " << compress_output   << endl;
+#ifdef EVTORDER
     cout << "order_events      = " << order_events      << endl;
     cout << "allow_sync_events = " << allow_sync_events << endl;
+#endif
   }
 
   // Read database, if any
   database.Open(cfg.db_file);
-  if( auto sz = database.GetSize(); sz > 0 ) {
+  if( auto sz = database.GetSize(); debug > 0 and sz > 0 ) {
     cout << "Read " << sz << " parameters from database " << cfg.db_file << endl;
-    if( debug > 0 )
+    if( debug > 1 )
       database.Print();
   }
 
