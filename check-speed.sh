@@ -2,10 +2,17 @@
 # Benchmark scaling performance of multithreaded toy analyzer ppodd
 
 # Maximum number of analysis threads. Oversubscribe to verify saturation behavior
-N=$[$(nproc)+2]
+N=$(($(nproc)+2))
 
 # Number of events per run
-NEV=1000
+if [ $# -ge 1 ]; then
+  NEV=$1
+else
+  NEV=1000
+fi
+NMARK=$((NEV/50))
+
+[ -n "$NMARK" ] && MARK="-m $NMARK"
 
 # Timing command
 osname=$(uname -s)
@@ -23,8 +30,8 @@ fi
 # Find executable, preferably from this build
 exepaths="cmake-build-release cmake-build-relwithdebinfo build ."
 for P in $exepaths; do
-  if [ -x $P/ppodd ]; then
-    PPODD=$P/ppodd
+  if [ -x "$P/ppodd" ]; then
+    PPODD="$P/ppodd"
     break
   fi
 done
@@ -41,16 +48,19 @@ TMPF=/tmp/check-speed.tmp
 RESF=check-speed.out
 rm -f $RESF $TMPF
 
-while [ $N -gt 0 ]; do
-  printf "Running %d analysis threads\n" $N
-  /usr/bin/time $TARGS "$TFMT" "$PPODD" -d1 -n $NEV -j $N -z test.dat |& tee $TMPF
-  if [ $? -eq 0 ]; then
-    printf "%d " $N >> $RESF
-    grep "Init:.*ms" $TMPF | awk '{printf("%s ",$2)}' >> $RESF
-    grep "Analysis:.*ms" $TMPF | awk '{printf("%s ",$2)}' >> $RESF
-    grep "Output:.*ms" $TMPF | awk '{printf("%s ",$2)}' >> $RESF
-    grep "Total CPU:.*ms" $TMPF | awk '{printf("%s ",$3)}' >> $RESF
-    grep "Real:.*ms" $TMPF | awk '{printf("%s ",$2)}' >> $RESF
+echo $NEV > $RESF
+J=1
+while [ $J -le $N ]; do
+  [ $J -gt 1 ] && PLURAL="s"
+  printf "Running %d analysis thread$PLURAL\n" $J
+  if /usr/bin/time $TARGS "$TFMT" "$PPODD" -d1 -n $NEV -j $J $MARK -z test.dat |& tee $TMPF ; then
+    { printf "%d " $J
+      grep "Init:.*ms" $TMPF | awk '{printf("%s ",$2)}'
+      grep "Analysis:.*ms" $TMPF | awk '{printf("%s ",$2)}'
+      grep "Output:.*ms" $TMPF | awk '{printf("%s ",$2)}'
+      grep "Total CPU:.*ms" $TMPF | awk '{printf("%s ",$3)}'
+      grep "Real:.*ms" $TMPF | awk '{printf("%s ",$2)}'
+    } >> $RESF
     if [ "$osname" = "Linux" ]; then
       # Linux time(1) outputs kilobytes for the resident set size
       grep "maximum resident set size" $TMPF | awk '{printf("%s\n",$1*1000)}' >> $RESF
@@ -61,7 +71,7 @@ while [ $N -gt 0 ]; do
     echo "Error running ppodd for nthreads = $N"
     break
   fi
-  N=$[$N-1]
+  J=$((J+1))
 done
 rm -f $TMPF
-unset N NEV TARGS TFMT TMPF RESF PPODD
+unset N NEV NMARK TARGS TFMT TMPF RESF PPODD
