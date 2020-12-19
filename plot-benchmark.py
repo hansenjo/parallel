@@ -36,9 +36,8 @@ ncores = int((j.size - 2) / 2)
 real_rate = 1e3 * nev / t_real  # Analysis rate (Hz)
 ideal_rate = 1e3 * nev * j / t_cpu[0]
 
-# Parallelization efficiencies in %
-eff_ncores = round(100. * real_rate[ncores - 1] / ideal_rate[ncores - 1], 1)
-eff_nthreads = round(100. * real_rate[ncores * 2 - 1] / ideal_rate[ncores * 2 - 1], 1)
+# Parallelization efficiency in %
+efficiency = 100. * real_rate / ideal_rate
 
 # Memory usage analysis
 memusage /= 1e6  # Convert to MB
@@ -58,9 +57,9 @@ plt.axvline(ncores, linestyle="dotted")  # Marker line at number of CPU cores
 plt.axvline(ncores * 2, linestyle="dashed")  # Marker lines at number of CPU hyperthreads
 plt.legend()
 # Text labels with the efficiencies at the number of cores and threads points
-plt.annotate(f"{eff_ncores}% eff", (j[ncores - 1], real_rate[ncores - 1]),
+plt.annotate(f"{round(efficiency[ncores - 1], 1)}% eff", (j[ncores - 1], real_rate[ncores - 1]),
              textcoords="offset points", xytext=(5, -5), ha="left", va="top")
-plt.annotate(f"{eff_nthreads}% eff", (j[ncores * 2 - 1], real_rate[ncores * 2 - 1]),
+plt.annotate(f"{round(efficiency[ncores * 2 - 1], 1)}% eff", (j[ncores * 2 - 1], real_rate[ncores * 2 - 1]),
              textcoords="offset points", xytext=(5, -5), ha="left", va="top")
 plt.savefig("benchmark-rates.pdf")
 
@@ -74,8 +73,7 @@ plt.plot(j, fit_memusage, "--r", label="Fit")
 plt.ylim(0, memusage[-1] * 1.1)
 plt.legend()
 # Print estimated memory increase per thread
-MB_per_thread = round(predict[1], 2)
-plt.annotate(f"{MB_per_thread} MB/thread", (j[ncores - 1], predict(ncores)),
+plt.annotate(f"{round(predict[1], 2)} MB/thread", (j[ncores - 1], predict(ncores)),
              textcoords="offset points", xytext=(5, -5), ha="left", va="top")
 plt.savefig("benchmark-memusage.pdf")
 

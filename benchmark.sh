@@ -2,9 +2,9 @@
 # Benchmark scaling performance of multithreaded toy analyzer ppodd
 
 # Number of logical CPUs on this system
-NLOGICAL=$(getconf _NPROCESSORS_ONLN)
+NCPU=$(getconf _NPROCESSORS_ONLN)
 # Maximum number of analysis threads. Oversubscribe to verify saturation behavior
-N=$((NLOGICAL+2))
+N=$((NCPU+2))
 
 # Number of events per run
 if [ $# -ge 1 ]; then
@@ -43,8 +43,22 @@ if [ -z "$PPODD" ]; then
   echo "Cannot find ppodd"
   exit
 fi
+
+# Check for input file. Generate it if necessary
+TESTDAT="test.dat"
+if [ ! -r "$TESTDAT" ]; then
+  GENERATE="$(dirname "$PPODD")/generate"
+  if [ ! -x "$GENERATE" ]; then
+    echo "No data file present, and cannot find generate"
+    exit
+  fi
+  if ! "$GENERATE" -c3 -n $((NEV>100000?NEV:100000)) "$TESTDAT"; then
+    echo "Error generating test data. Do you have write permission to this directory?"
+    exit
+  fi
+fi
 echo "Benchmarking $PPODD"
-echo "Found $NLOGICAL logical CPUs"
+echo "Found $NCPU logical CPUs"
 
 # Scratch file and result file
 TMPF=/tmp/ppodd-benchmark.tmp
@@ -56,7 +70,7 @@ J=1
 while [ $J -le $N ]; do
   [ $J -gt 1 ] && PLURAL="s"
   printf "Running %d analysis thread$PLURAL\n" $J
-  if /usr/bin/time $TARGS "$TFMT" "$PPODD" -d1 -n $NEV -j $J $MARK -z test.dat |& tee $TMPF ; then
+  if /usr/bin/time $TARGS "$TFMT" "$PPODD" -d1 -n $NEV -j $J $MARK -z "$TESTDAT" |& tee $TMPF ; then
     { printf "%d " $J
       grep "Init:.*ms" $TMPF | awk '{printf("%s ",$2)}'
       grep "Analysis:.*ms" $TMPF | awk '{printf("%s ",$2)}'
@@ -77,4 +91,4 @@ while [ $J -le $N ]; do
   J=$((J+1))
 done
 rm -f $TMPF
-unset N NEV NMARK TARGS TFMT TMPF RESF PPODD
+unset N NEV NCPU TARGS TFMT TMPF RESF TESTDAT PPODD GENERATE
