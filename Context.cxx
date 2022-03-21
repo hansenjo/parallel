@@ -12,8 +12,8 @@
 using namespace std;
 using namespace boost::algorithm;
 
-Context::Context()
-  : is_init(false), is_active(false)
+Context::Context( int _id )
+  : id(_id), is_init(false), is_active(false)
 {
   variables = make_shared<varlst_t>();
 }
@@ -79,9 +79,11 @@ int Context::Init()
     return 3;
   }
 
+#ifndef PPODD_TBB
   if( !evbuffer )
     evbuffer = make_unique<evbuf_t[]>(MAX_EVTSIZE);
   evbuffer[0] = 0;
+#endif
 
   is_init = true;
   return 0;

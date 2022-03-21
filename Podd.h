@@ -8,12 +8,14 @@
 #include <memory>
 #include <string>
 #include <limits>
+#include <chrono>
 
 // Typedefs for variable and detector lists
 class Variable;
 class Detector;
 using varlst_t = std::list<std::unique_ptr<Variable>>;
 using detlst_t = std::vector<std::unique_ptr<Detector>>;
+using ClockTime_t  = std::chrono::duration<double, std::milli>;
 
 // Debug level
 extern int debug;

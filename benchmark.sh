@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Benchmark scaling performance of multithreaded toy analyzer ppodd
 
+EXE=ppodd-tbb
+
 # Number of logical CPUs on this system
 NCPU=$(getconf _NPROCESSORS_ONLN)
 # Maximum number of analysis threads. Oversubscribe to verify saturation behavior
@@ -32,13 +34,13 @@ fi
 # Find executable, preferably from this build
 exepaths="cmake-build-release cmake-build-relwithdebinfo build ."
 for P in $exepaths; do
-  if [ -x "$P/ppodd" ]; then
-    PPODD="$P/ppodd"
+  if [ -x "$P/$EXE" ]; then
+    PPODD="$P/$EXE"
     break
   fi
 done
 # Not found? Maybe it is in the PATH?
-[ -z "$PPODD" ] && PPODD="$(which ppodd)"
+[ -z "$PPODD" ] && PPODD="$(which $EXE)"
 if [ -z "$PPODD" ]; then
   echo "Cannot find ppodd"
   exit
@@ -91,4 +93,4 @@ while [ $J -le $N ]; do
   J=$((J+1))
 done
 rm -f $TMPF
-unset N NEV NCPU TARGS TFMT TMPF RESF TESTDAT PPODD GENERATE
+unset EXE N NEV NCPU TARGS TFMT TMPF RESF TESTDAT PPODD GENERATE

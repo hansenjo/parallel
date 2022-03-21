@@ -7,13 +7,14 @@ set(PPODD ppodd)
 set(PSRC DataFile.cxx Decoder.cxx Variable.cxx Output.cxx Util.cxx Context.cxx
   Detector.cxx DetectorTypeA.cxx DetectorTypeB.cxx DetectorTypeC.cxx Database.cxx)
 string(REPLACE .cxx .h PHDR "${PSRC}")
-list(APPEND PSRC ppodd.cxx)
 list(APPEND PHDR Podd.h)
+add_executable(${PPODD} ${PPODD}.cxx ${PSRC} ${PHDR})
+
+set(PPODDTBB ppodd-tbb)
+add_executable(${PPODDTBB} ${PPODDTBB}.cxx ${PSRC} ${PHDR})
 
 set(GENE generate)
 set(GSRC generate.cxx)
-
-add_executable(${PPODD} ${PSRC} ${PHDR})
 add_executable(${GENE} ${GSRC})
 
 target_compile_options(${PPODD}
@@ -35,6 +36,26 @@ set(Boost_USE_MULTITHREADED TRUE)
 find_package(Boost REQUIRED COMPONENTS iostreams)
 target_link_libraries(${PPODD} Threads::Threads Boost::iostreams)
 
+find_package(TBB 2021 REQUIRED)
+if(TBB_FOUND)
+  message(STATUS "Found TBB ${TBB_VERSION} in ${TBB_DIR}")
+endif()
+
+target_compile_options(${PPODDTBB}
+  PRIVATE $<$<CONFIG:Debug>:-O0> -Wall
+  )
+set_target_properties(${PPODDTBB}
+  PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    CXX_EXTENSIONS OFF
+  )
+target_link_libraries(${PPODDTBB}
+  Threads::Threads Boost::iostreams
+  TBB::tbb TBB::tbbmalloc TBB::tbbmalloc_proxy
+  )
+target_compile_definitions(${PPODDTBB} PRIVATE PPODD_TBB)
+
 target_compile_options(${GENE}
   PRIVATE $<$<CONFIG:Debug>:-O0> -Wall
 )
@@ -45,7 +66,7 @@ set_target_properties(${GENE}
     CXX_EXTENSIONS OFF
 )
 
-install(TARGETS ${PPODD} ${GENE} DESTINATION bin)
+install(TARGETS ${PPODD} ${PPODDTBB} ${GENE} DESTINATION bin)
 
 add_subdirectory(Examples)
 
