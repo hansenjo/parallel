@@ -29,7 +29,7 @@ int DataFile::Open( const string& fname )
   filep = fopen( filename.c_str(), "r" );
   if( !filep ) {
     cerr << "Error opening file " << filename << endl;
-    return -1;
+    return 1;
   }
 
   return 0;
@@ -59,19 +59,19 @@ int DataFile::ReadEvent()
     if( feof(filep) )
       return -1;
     cerr << "Error reading event header from file " << filename << endl;
-    return 1;
+    return 2;
   }
   evbuf_t evsize = buffer[0];
   if( evsize > MAX_EVTSIZE*wordsize ) {
     cerr << "Event too large, size = " << evsize << endl;
-    return 2;
+    return 3;
   }
 
   // Read data
   if( fread( bufptr+1, 1, evsize-wordsize, filep ) != evsize-wordsize ) {
     // EOF should never occur in the midst of the data
     cerr << "Error reading event data from file " << filename << endl;
-    return 2;
+    return 4;
   }
 
   return 0;
