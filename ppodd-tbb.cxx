@@ -24,9 +24,10 @@
 #include <sstream>
 #include <numeric>
 
-#include "oneapi/tbb/flow_graph.h"
-#include "oneapi/tbb/scalable_allocator.h"
+#include <oneapi/tbb/flow_graph.h>
+#include <oneapi/tbb/scalable_allocator.h>
 #include <oneapi/tbb/global_control.h>
+#include <oneapi/tbb/concurrent_queue.h>
 
 // For output module
 #include <fstream>
@@ -179,8 +180,7 @@ void get_args(int argc, char* const* argv )
 static void mark_progress( size_t nev )
 {
   if( cfg.mark != 0 ) {
-    auto d = lldiv(nev,cfg.mark);
-    if( d.rem == 0 ) {
+    if( (nev % cfg.mark) == 0 ) {
       if( nev > cfg.mark )
         cout << "..";
       cout << nev << flush;
@@ -192,62 +192,74 @@ static void mark_progress( size_t nev )
 class EventReader {
 public:
   explicit EventReader( size_t max, const string& filename );
-  ~EventReader() { m_inp.Close(); }
+  ~EventReader();
   evbuf_t* operator()();
   [[nodiscard]] evbuf_t* get() const { return m_cur; }
   [[nodiscard]] size_t evtnum() const { return m_count; }
   [[nodiscard]] bool is_special() const;
   void print() const;
+  void push( evbuf_t* evt );
 private:
   size_t m_max;
   size_t m_count;
+  size_t m_bufcount;
   evbuf_t* m_cur;  // Current event read
   DataFile m_inp;
+  tbb::concurrent_queue<evbuf_t*> m_queue;
 };
 
 EventReader::EventReader( size_t max, const string& filename ) :
   m_max(max),
   m_count(0),
+  m_bufcount(0),
   m_cur(nullptr),
   m_inp(filename) {}
 
 evbuf_t* EventReader::operator()() {
-  if( !m_inp.IsOpen() &&  m_inp.Open() != 0 )
+  if( !m_inp.IsOpen() && m_inp.Open() != 0 )
     return m_cur = nullptr;
 
   int st = m_inp.ReadEvent();
   if( st == 0 && ++m_count <= m_max ) {
     size_t evsiz = m_inp.GetEvSize();  // bytes
     size_t type = 0; //TODO
-    constexpr size_t extra = 3*sizeof(size_t)/sizeof(evbuf_t); // Space for event header
-    m_cur = event_allocator.allocate(evsiz+extra);
-    ((size_t*)m_cur)[0] = evsiz+extra;
-    ((size_t*)m_cur)[1] = m_count;
-    ((size_t*)m_cur)[2] = type;
-    memcpy(m_cur+extra, m_inp.GetEvBufPtr(), evsiz);
+    constexpr size_t hdrsiz = 3 * sizeof(size_t) / sizeof(evbuf_t); // Space for event header
+  get_buffer:
+    if( m_queue.try_pop(m_cur) ) {
+      auto* hdr = reinterpret_cast<size_t*>(m_cur);
+      hdr[0] = evsiz + hdrsiz;
+      hdr[1] = m_count;
+      hdr[2] = type;
+      memcpy(m_cur + hdrsiz, m_inp.GetEvBufPtr(), evsiz); //TODO: swap
 
-    if( debug > 1 )
-      cout << "Event " << m_count << endl;
-    else
-      mark_progress(m_count);
-
-  } else {
-    if( cfg.mark != 0 && m_count >= cfg.mark )
-      cout << endl;
-    if( debug > 0 ) {
-      if( st > 0 )
-        cerr << "Reading input ended with error " << st << endl;
-      else if( st == -1 )
-        cout << "Normal end of file" << endl;
-      else if( st == 0 )
-        cout << "Event limit reached" << endl;
+      if( debug > 1 )
+        cout << "Event " << m_count << endl;
       else
-        assert(false);
-      cout << "Read " << m_count << " events" << endl;
+        mark_progress(m_count);
+
+      return m_cur;
     }
-    m_cur = nullptr;
+    // If we're out of buffers, make a new one. This will quickly settle into a
+    // steady state as buffers are returned to the queue by the process() node.
+    push(event_allocator.allocate(evsiz + hdrsiz));
+    ++m_bufcount;
+    goto get_buffer;
+
   }
-  return m_cur;
+  if( cfg.mark != 0 && m_count >= cfg.mark )
+    cout << endl;
+  if( debug > 0 ) {
+    if( st > 0 )
+      cerr << "Reading input ended with error " << st << endl;
+    else if( st == -1 )
+      cout << "Normal end of file" << endl;
+    else if( st == 0 )
+      cout << "Event limit reached" << endl;
+    else
+      assert(false);
+    cout << "Read " << m_count << " events" << endl;
+  }
+  return m_cur = nullptr;
 }
 
 bool EventReader::is_special() const {
@@ -256,8 +268,20 @@ bool EventReader::is_special() const {
 }
 
 void EventReader::print() const {
-  cout << "Event reader: read/limit: " << m_count << "/" << m_max << endl;
+  cout << "Event reader: read/limit: " << m_count << "/" << m_max
+       << ", buffers allocated = " << m_bufcount << endl;
 }
+
+void EventReader::push( evbuf_t* evt ) {
+  m_queue.push(evt);
+}
+
+EventReader::~EventReader() {
+  m_inp.Close();
+  while( m_queue.try_pop(m_cur) && m_cur )
+    event_allocator.deallocate(m_cur, ((size_t*) m_cur)[0]);
+}
+
 
 //-------------------------------------------------------------
 class OutputWriter {
@@ -449,7 +473,7 @@ int main( int argc, char* const* argv )
                                   });
 
   function_node<tuple_t, Context*> process(g, unlimited,
-                                            []( const tuple_t& t ) -> Context* {
+                                            [&]( const tuple_t& t ) -> Context* {
                                               auto start = HighResClock::now();
 
                                               auto* evtPtr = get<0>(t);
@@ -480,7 +504,7 @@ int main( int argc, char* const* argv )
                                               }
 
                                             skip: //TODO: add error status to context, let output skip bad results
-                                              event_allocator.deallocate(evtPtr, ((size_t*)evtPtr)[0]);
+                                              eventReader.push(evtPtr);
 
                                               auto stop = HighResClock::now();
                                               ctx.m_time_spent += stop-start;
@@ -506,6 +530,8 @@ int main( int argc, char* const* argv )
                                    return ctx->nev - 1;  // Sequence must start at 0
                                  });
 
+  read_input.activate();
+
   // Build the graph
   make_edge(free_ctx, input_port<1>(j));
   make_edge(j, process);
@@ -528,15 +554,12 @@ int main( int argc, char* const* argv )
 
   if( mode != kPreserveSpecial ) {
     make_edge(read_input, input_port<0>(j));
-    read_input.activate();
     g.wait_for_all();
 
   } else {
-    // Use a queue_node here for the moment until we figure out how to send
-    // data explicitly to port 0 of a join_node
     queue_node<evbuf_t*> evtqueue(g);
-    make_edge(read_input, evtqueue);
     make_edge(evtqueue, input_port<0>(j));
+    make_edge(read_input, input_port<0>(j));
     evbuf_t* ev;
     do {
       read_input.activate();
