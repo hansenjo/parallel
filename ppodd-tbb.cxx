@@ -25,7 +25,6 @@
 #include <numeric>
 
 #include <oneapi/tbb/flow_graph.h>
-#include <oneapi/tbb/scalable_allocator.h>
 #include <oneapi/tbb/global_control.h>
 #include <oneapi/tbb/concurrent_queue.h>
 
@@ -51,7 +50,6 @@ int compress_output = 0;
 int delay_us = 0;
 enum Mode { kUnordered, kPreserveSpecial, kOrdered };
 Mode mode = kUnordered;
-scalable_allocator<evbuf_t> event_allocator;
 
 //-------------------------------------------------------------
 // Set any unset filenames to defaults (= input file name + extension)
@@ -189,48 +187,82 @@ static void mark_progress( size_t nev )
 }
 
 //-------------------------------------------------------------
+// Wrapper object around event buffer. Includes metadata about the
+// buffer contents
+class EventBuffer {
+public:
+  EventBuffer();
+  [[nodiscard]] evbuf_t*     get()        const { return m_buffer.get(); }
+  [[nodiscard]] evbuf_ptr_t& getptr()           { return m_buffer; }
+  [[nodiscard]] size_t       evtnum()     const { return m_evtnum; }
+  [[nodiscard]] size_t       size()       const { return m_bufsiz; }
+  [[nodiscard]] int          type()       const { return m_type; }
+  [[nodiscard]] bool         is_special() const { return m_type != 0; }
+  void set( size_t size, size_t evtnum, int type ) {
+    m_bufsiz = size; m_evtnum = evtnum; m_type = type;
+  }
+private:
+  evbuf_ptr_t m_buffer;
+  size_t m_bufsiz;
+  size_t m_evtnum;
+  int m_type;
+};
+
+EventBuffer::EventBuffer() : m_buffer{}, m_bufsiz(0), m_evtnum(0), m_type(0)
+{
+  // TODO
+  //  For simplicity, use a fixed buffer size and the standard allocator
+  //  instead of tbb:scalable_allocator
+  m_buffer = make_unique<evbuf_t[]>(MAX_EVTSIZE);
+}
+
+
+//-------------------------------------------------------------
 class EventReader {
 public:
   explicit EventReader( size_t max, const string& filename );
   ~EventReader();
-  evbuf_t* operator()();
-  [[nodiscard]] evbuf_t* get() const { return m_cur; }
+  EventBuffer* operator()();
+  [[nodiscard]] EventBuffer* get() const { return m_cur; }
   [[nodiscard]] size_t evtnum() const { return m_count; }
   [[nodiscard]] bool is_special() const;
   void print() const;
-  void push( evbuf_t* evt );
+  void push( EventBuffer* evt );
 private:
+  DataFile m_inp;
   size_t m_max;
   size_t m_count;
   size_t m_bufcount;
-  evbuf_t* m_cur;  // Current event read
-  DataFile m_inp;
-  tbb::concurrent_queue<evbuf_t*> m_queue;
+  EventBuffer* m_cur;  // Current event read
+  tbb::concurrent_queue<EventBuffer*> m_queue;
 };
 
 EventReader::EventReader( size_t max, const string& filename ) :
+  m_inp(filename),
   m_max(max),
   m_count(0),
   m_bufcount(0),
-  m_cur(nullptr),
-  m_inp(filename) {}
+  m_cur(nullptr) {}
 
-evbuf_t* EventReader::operator()() {
-  if( !m_inp.IsOpen() && m_inp.Open() != 0 )
+EventBuffer* EventReader::operator()() {
+  if( (!m_inp.IsOpen() && m_inp.Open() != 0) )
     return m_cur = nullptr;
 
-  int st = m_inp.ReadEvent();
-  if( st == 0 && ++m_count <= m_max ) {
-    size_t evsiz = m_inp.GetEvSize();  // bytes
-    size_t type = 0; //TODO
-    constexpr size_t hdrsiz = 3 * sizeof(size_t) / sizeof(evbuf_t); // Space for event header
-  get_buffer:
-    if( m_queue.try_pop(m_cur) ) {
-      auto* hdr = reinterpret_cast<size_t*>(m_cur);
-      hdr[0] = evsiz + hdrsiz;
-      hdr[1] = m_count;
-      hdr[2] = type;
-      memcpy(m_cur + hdrsiz, m_inp.GetEvBufPtr(), evsiz); //TODO: swap
+  int st = 0;
+  if( m_count < m_max ) {
+    if( (st = m_inp.ReadEvent()) == 0 ) {
+      size_t evsiz = m_inp.GetEvSize();  // bytes
+      int type = 0; //TODO
+      ++m_count;
+      if( !m_queue.try_pop(m_cur) ) {
+        // If we're out of buffers, make a new one. This will quickly settle into a
+        // steady state as buffers are returned to the queue by the process() node.
+        m_cur = new EventBuffer;
+        ++m_bufcount;
+      }
+      m_cur->set(evsiz, m_count, type);
+      std::swap(m_cur->getptr(), m_inp.GetEvBuffer());
+      assert(m_cur->size() == evsiz);
 
       if( debug > 1 )
         cout << "Event " << m_count << endl;
@@ -239,12 +271,6 @@ evbuf_t* EventReader::operator()() {
 
       return m_cur;
     }
-    // If we're out of buffers, make a new one. This will quickly settle into a
-    // steady state as buffers are returned to the queue by the process() node.
-    push(event_allocator.allocate(evsiz + hdrsiz));
-    ++m_bufcount;
-    goto get_buffer;
-
   }
   if( cfg.mark != 0 && m_count >= cfg.mark )
     cout << endl;
@@ -263,8 +289,7 @@ evbuf_t* EventReader::operator()() {
 }
 
 bool EventReader::is_special() const {
-  // simulate special event type
-  return (((size_t*)m_cur)[2] != 0);
+  return m_cur->is_special();
 }
 
 void EventReader::print() const {
@@ -272,14 +297,14 @@ void EventReader::print() const {
        << ", buffers allocated = " << m_bufcount << endl;
 }
 
-void EventReader::push( evbuf_t* evt ) {
+void EventReader::push( EventBuffer* evt ) {
   m_queue.push(evt);
 }
 
 EventReader::~EventReader() {
   m_inp.Close();
-  while( m_queue.try_pop(m_cur) && m_cur )
-    event_allocator.deallocate(m_cur, ((size_t*) m_cur)[0]);
+  while( m_queue.try_pop(m_cur) )
+    delete m_cur;
 }
 
 
@@ -453,7 +478,7 @@ int main( int argc, char* const* argv )
   OutputWriter outputWriter(cfg.output_file);
 
   // Set up TBB flow graph nodes
-  using tuple_t = tuple<evbuf_t*, Context*>;
+  using tuple_t = tuple<EventBuffer*, Context*>;
 
   tbb::flow::graph g;
 
@@ -461,74 +486,78 @@ int main( int argc, char* const* argv )
 
   buffer_node<Context*> free_ctx(g);
 
-  input_node<evbuf_t*> read_input(g,
-                                  [&]( flow_control& fc ) -> evbuf_t* {
-                                    auto* ev = eventReader();
-                                    if( !ev ||
-                                        (mode == kPreserveSpecial && eventReader.is_special() )) {
-                                      fc.stop();
-                                      return nullptr;
-                                    }
-                                    return ev;
-                                  });
+  input_node<EventBuffer*>
+    read_input(g,
+               [&]( flow_control& fc ) -> EventBuffer* {
+                 auto* ev = eventReader();
+                 if( !ev ||
+                     (mode == kPreserveSpecial && ev->is_special()) ) {
+                   fc.stop();
+                   return nullptr;
+                 }
+                 return ev;
+               });
 
-  function_node<tuple_t, Context*> process(g, unlimited,
-                                            [&]( const tuple_t& t ) -> Context* {
-                                              auto start = HighResClock::now();
+  function_node<tuple_t, Context*>
+    process(g, unlimited,
+            [&]( const tuple_t& t ) -> Context* {
+              auto start = HighResClock::now();
 
-                                              auto* evtPtr = get<0>(t);
-                                              auto* ctxPtr = get<1>(t);
-                                              auto& ctx = *ctxPtr;
-                                              if( int status = ctx.evdata.Load(evtPtr+6) ) {
-                                                cerr << "Decoding error = " << status
-                                                     << " at event " << ctx.nev << endl;
-                                                goto skip;
-                                              }
-//                                              ctx.iseq = ctx.nev = ((size_t*)evtPtr)[1];
-//                                              cout << "Loaded event " << ctx.nev
-//                                                   << ", context = " << ctx.id
-//                                                   << flush << endl;
+              auto* evtPtr = get<0>(t);
+              auto* ctxPtr = get<1>(t);
+              auto& ctx = *ctxPtr;
+              if( int status = ctx.evdata.Load(evtPtr->get()) ) {
+                cerr << "Decoding error = " << status
+                     << " at event " << ctx.nev << endl;
+                goto skip;
+              }
+//              ctx.iseq = ctx.nev = evtPtr->evtnum();
+//              cout << "Loaded event " << ctx.nev
+//                   << ", context = " << ctx.id
+//                   << flush << endl;
 
-                                              for( auto& det : ctx.detectors ) {
-                                                det->Clear();
-                                                if( det->Decode(ctx.evdata) != 0 )
-                                                  goto skip;
-                                                if( det->Analyze() != 0 )
-                                                  goto skip;
-                                              }
+              for( auto& det: ctx.detectors ) {
+                det->Clear();
+                if( det->Decode(ctx.evdata) != 0 )
+                  goto skip;
+                if( det->Analyze() != 0 )
+                  goto skip;
+              }
 
-                                              // If requested, add random delay
-                                              if( delay_us > 0 ) {
-                                                int us = intRand(0, delay_us);
-                                                std::this_thread::sleep_for(std::chrono::microseconds(2 * us));
-                                              }
+              // If requested, add random delay
+              if( delay_us > 0 ) {
+                int us = intRand(0, delay_us);
+                std::this_thread::sleep_for(std::chrono::microseconds(2 * us));
+              }
 
-                                            skip: //TODO: add error status to context, let output skip bad results
-                                              eventReader.push(evtPtr);
+            skip: //TODO: add error status to context, let output skip bad results
+              eventReader.push(evtPtr);
 
-                                              auto stop = HighResClock::now();
-                                              ctx.m_time_spent += stop-start;
+              auto stop = HighResClock::now();
+              ctx.m_time_spent += stop - start;
 
-                                              return ctxPtr;
-                                            });
+              return ctxPtr;
+            });
 
-  function_node<Context*, Context*> out(g, serial,
-                                            [&]( Context* ctxPtr ) -> Context* {
-//                                              cout << "Output " << setw(5) << ctxPtr->nev;
-////                                              if( ctxPtr->evtype() )
-////                                                cout << " S ";
-////                                              else
-//                                              cout << "   ";
-//                                              cout << ", context = " << ctxPtr->id
-//                                                   << flush << endl;
-                                              auto* ret = outputWriter(ctxPtr);
-                                              return ret;
-                                            });
+  function_node<Context*, Context*>
+    out(g, serial,
+        [&]( Context* ctxPtr ) -> Context* {
+//          cout << "Output " << setw(5) << ctxPtr->nev;
+//          if( ctxPtr->evtype() )
+//            cout << " S ";
+//          else
+//            cout << "   ";
+//          cout << ", context = " << ctxPtr->id
+//               << flush << endl;
+          auto* ret = outputWriter(ctxPtr);
+          return ret;
+        });
 
-  sequencer_node<Context*> seq(g,
-                                 []( const Context* ctx ) -> size_t {
-                                   return ctx->nev - 1;  // Sequence must start at 0
-                                 });
+  sequencer_node<Context*>
+    seq(g,
+        []( const Context* ctx ) -> size_t {
+          return ctx->nev - 1;  // Sequence must start at 0
+        });
 
   read_input.activate();
 
@@ -557,10 +586,10 @@ int main( int argc, char* const* argv )
     g.wait_for_all();
 
   } else {
-    queue_node<evbuf_t*> evtqueue(g);
+    queue_node<EventBuffer*> evtqueue(g);
     make_edge(evtqueue, input_port<0>(j));
     make_edge(read_input, input_port<0>(j));
-    evbuf_t* ev;
+    EventBuffer* ev;
     do {
       read_input.activate();
       g.wait_for_all();
@@ -572,6 +601,9 @@ int main( int argc, char* const* argv )
       }
     } while( ev );
   }
+
+  if( debug > 0 )
+    eventReader.print();
 
   // Total wall times
   ClockTime_t run_duration = HighResClock::now() - start;
