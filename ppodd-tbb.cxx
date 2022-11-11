@@ -237,12 +237,13 @@ private:
   tbb::concurrent_queue<EventBuffer*> m_queue;
 };
 
-EventReader::EventReader( size_t max, const string& filename ) :
-  m_inp(filename),
-  m_max(max),
-  m_count(0),
-  m_bufcount(0),
-  m_cur(nullptr) {}
+EventReader::EventReader( size_t max, const string& filename )
+  : m_inp(filename)
+  , m_max(max)
+  , m_count(0)
+  , m_bufcount(0)
+  , m_cur(nullptr)
+{}
 
 EventBuffer* EventReader::operator()() {
   if( (!m_inp.IsOpen() && m_inp.Open() != 0) )
@@ -303,8 +304,10 @@ void EventReader::push( EventBuffer* evt ) {
 
 EventReader::~EventReader() {
   m_inp.Close();
-  while( m_queue.try_pop(m_cur) )
+  while( m_queue.try_pop(m_cur) ) {
     delete m_cur;
+    m_cur = nullptr;
+  }
 }
 
 
@@ -383,7 +386,7 @@ void OutputWriter::WriteEvent( ostrm_t& os, Context* ctx, bool do_header ) {
 
 void OutputWriter::WriteHeader( ostrm_t& os, Context* ctx ) {
   // Write output file header
-  // <N = number of variables> N*<variable typ£££e> N*<variable name C-string>
+  // <N = number of variables> N*<variable type> N*<variable name C-string>
   // where
   //  <variable type> = TTTNNNNN,
   // with

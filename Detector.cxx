@@ -9,7 +9,10 @@
 using namespace std;
 
 Detector::Detector( string _name, int _imod )
-  : name(move(_name)), type("--baseclass--"), imod(_imod-1), fVars(nullptr)
+  : name(std::move(_name))
+  , type("--baseclass--")
+  , imod(_imod-1)
+  , fVars(nullptr)
 {
   if( imod<0 ) {
     cerr << "\"" << name << "\": "
@@ -36,7 +39,7 @@ int Detector::Init( bool shared )
 // Generic detector decoding
 int Detector::Decode( Decoder& evdata )
 {
-  int ndata = evdata.GetNdata(imod);
+  auto ndata = evdata.GetNdata(imod);
   if( debug > 1 )
     Print();
   if( debug > 2 )
@@ -49,8 +52,8 @@ int Detector::Decode( Decoder& evdata )
     data.assign( pdata, pdata+ndata );
 
     if( debug > 3 ) {
-      for( int i = 0; i < ndata; ++i ) {
-	cout << evdata.GetData(imod,i);
+      for( decltype(ndata) i = 0; i < ndata; ++i ) {
+        cout << evdata.GetData(imod, i);
 	if( i+1 != ndata )
 	  cout << ", ";
       }

@@ -21,13 +21,16 @@
 using namespace std;
 
 // Configuration
-static const char* prgname;
-static const char* filename = "";
-static const size_t SIZE = 1024;
-static const long int seed = 87934;
-static int debug = 0;
-static int NEVT = 10000;
-static int NDET = 1;
+static constexpr size_t SIZE = 1024;
+static constexpr long int seed = 87934;
+struct Config {
+  const char* prgname{""};
+  const char* filename{""};
+  int debug{0};
+  unsigned NEVT{10000};
+  unsigned NDET{1};
+};
+static Config conf;
 
 // Gaussian-distributed random numbers
 static inline
@@ -51,7 +54,7 @@ tuple<double,double> gauss()
 // Usage message
 static void usage()
 {
-  cerr << "Usage: " << prgname << " [options] output_file" << endl
+  cerr << "Usage: " << conf.prgname << " [options] output_file" << endl
        << "where options are:" << endl
        << " [ -c num ]\tnumber of detectors to simulate (default 1)" << endl
        << " [ -n nev_max ]\t\tset number of events (default 10000)" << endl
@@ -73,13 +76,13 @@ public:
           m_evtp(m_bufstart)
   {}
 
-  void fill_header(int ndet) {
+  void fill_header(uint32_t ndet) {
     EventHeader evthdr(0, ndet);
-    m_evtp = (char*)m_bufstart;
+    m_evtp = m_bufstart;
     memcpy(m_evtp, &evthdr, sizeof(evthdr) );
     m_evtp += sizeof(evthdr);
   }
-  void append_module(int idet, int ndata, EvDat_t* data) {
+  void append_module(uint32_t idet, uint32_t ndata, EvDat_t* data) {
     ModuleHeader modhdr( sizeof(modhdr) + ndata*sizeof(EvDat_t),
                          idet+1, // in the data file, module numbers start counting at 1
                          ndata );
@@ -116,25 +119,25 @@ private:
 // Command line parser
 void get_args( int argc, char** argv )
 {
-  prgname = argv[0];
-  if( strlen(prgname) >= 2 && strncmp(prgname,"./",2) == 0 )
-    prgname += 2;
+  conf.prgname = argv[0];
+  if( strlen(conf.prgname) >= 2 && strncmp(conf.prgname,"./",2) == 0 )
+    conf.prgname += 2;
 
   int opt;
   while( (opt = getopt(argc, argv, "c:d:n:h")) != -1 ) {
     switch (opt) {
       case 'c':
-        NDET = stoi(optarg);
-        if( NDET > MAXMODULES ) {
+        conf.NDET = stoi(optarg);
+        if( conf.NDET > MAXMODULES ) {
           cerr << "Too many detectors, max " << MAXMODULES << endl;
           exit(255);
         }
         break;
       case 'd':
-        debug = stoi(optarg);
+        conf.debug = stoi(optarg);
         break;
       case 'n':
-        NEVT = stoi(optarg);
+        conf.NEVT = stoi(optarg);
         break;
       case 'h':
       default:
@@ -146,7 +149,7 @@ void get_args( int argc, char** argv )
     cerr << "Output file name missing" << endl;
     usage();
   }
-  filename = argv[optind];
+  conf.filename = argv[optind];
 }
 
 int main( int argc, char** argv )
@@ -154,9 +157,9 @@ int main( int argc, char** argv )
   get_args(argc, argv);
 
   // Open output
-  FILE* file = fopen(filename, "wb");
+  FILE* file = fopen(conf.filename, "wb");
   if( !file ) {
-    cerr << "Cannot open file " << filename << endl;
+    cerr << "Cannot open file " << conf.filename << endl;
     exit(1);
   }
 
@@ -165,19 +168,19 @@ int main( int argc, char** argv )
 
   try {
     // Generate event data
-    for( int iev = 0; iev < NEVT; ++iev ) {
-      evbuffer.fill_header(NDET);
-      for( int idet = 0; idet < NDET; ++idet ) {
-        int ndata = 0;
+    for( unsigned iev = 0; iev < conf.NEVT; ++iev ) {
+      evbuffer.fill_header(conf.NDET);
+      for( unsigned idet = 0; idet < conf.NDET; ++idet ) {
+        unsigned ndata;
         EvDat_t data[MAXDATA];
         switch( idet ) {
           case 1:
             // Module type 2 wants 4-8 data points for linear fit
-            ndata = int(5. * drand48()) + 4;
+            ndata = unsigned(5. * drand48()) + 4;
             {
               double slope = (2.0 * drand48() - 1.0);
               double inter = (2.0 * drand48() - 1.0);
-              for( int i = 0; i < ndata; ++i ) {
+              for( unsigned i = 0; i < ndata; ++i ) {
                 assert(2 * i + 1 < MAXDATA);
                 // y = error + intercept + slope*x;
                 auto [y1,y2] = gauss();
@@ -199,8 +202,8 @@ int main( int argc, char** argv )
             break;
           default:
             // Generate between 1 and MAXDATA random data values per module
-            ndata = int(MAXDATA * drand48()) + 1;
-            for( int i = 0; i < ndata; ++i ) {
+            ndata = unsigned(MAXDATA * drand48()) + 1;
+            for( unsigned i = 0; i < ndata; ++i ) {
               data[i] = 20.0 * drand48() - 10.0;
             }
             break;
@@ -217,8 +220,12 @@ int main( int argc, char** argv )
     return 1;
   }
 
-  cout << "Successfully generated " << NEVT << " events for " << NDET << " detectors" << endl;
+  if( fclose(file) != 0) {
+    cerr << "Error writing output file " << conf.filename << endl;
+    return 1;
+  }
+  cout << "Successfully generated " << conf.NEVT << " events for "
+       << conf.NDET << " detectors" << endl;
 
-  fclose(file);
   return 0;
 }

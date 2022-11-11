@@ -11,7 +11,7 @@
 
 using evbuf_t = uint32_t;
 using evbuf_ptr_t = std::unique_ptr<evbuf_t[]>;
-static const int MAX_EVTSIZE = 1024;
+static constexpr size_t MAX_EVTSIZE = 4*1024*1024;
 
 class DataFile {
 public:

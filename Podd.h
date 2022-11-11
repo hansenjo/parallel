@@ -22,7 +22,11 @@ extern int debug;
 
 // Program configuration
 struct Config {
-  Config() : nev_max(std::numeric_limits<size_t>::max()), nthreads(0), mark(0) {}
+  Config() noexcept
+    : nev_max(std::numeric_limits<size_t>::max())
+    , nthreads(0)
+    , mark(0)
+  {}
   void default_names();
 
   std::string input_file, odef_file, output_file, db_file;

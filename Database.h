@@ -75,8 +75,7 @@ private:
     double value{};
   } __attribute__((aligned(64)));
 
-  // Collection of key/value pairs from read from the database.
-  // Derived classes may extract their parameters from these items.
+  // Collection of key/value pairs read from the database.
   std::vector<Item> m_items;
 
   bool m_is_ready{false};  // True if database successfully read
