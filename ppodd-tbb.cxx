@@ -318,8 +318,8 @@ public:
   Context* operator()( Context* ctxPtr );
   ClockTime_t time() const { return m_time_spent; }
 private:
-  void WriteHeader( ostrm_t& os, Context* ctx );
-  void WriteEvent( ostrm_t& os, Context* ctx, bool do_header = false );
+  void WriteHeader( ostrm_t& os, const Context* ctx );
+  void WriteEvent( ostrm_t& os, const Context* ctx, bool do_header = false );
   struct OutFile {
     OutFile() : fLastWritten(0), fHeaderWritten(false) {}
     ~OutFile() { close(); }
@@ -375,16 +375,16 @@ skip:
   return ctxPtr;
 }
 
-void OutputWriter::WriteEvent( ostrm_t& os, Context* ctx, bool do_header ) {
+void OutputWriter::WriteEvent( ostrm_t& os, const Context* const ctx, bool do_header ) {
   // Write output file data (or header names)
-  for( auto& var : ctx->outvars ) {
+  for( const auto& var : ctx->outvars ) {
     var->write(os, do_header);
   }
   if( debug > 1 && !do_header )
     cout << "Wrote nev = " << ctx->nev << endl;
 }
 
-void OutputWriter::WriteHeader( ostrm_t& os, Context* ctx ) {
+void OutputWriter::WriteHeader( ostrm_t& os, const Context* const ctx ) {
   // Write output file header
   // <N = number of variables> N*<variable type> N*<variable name C-string>
   // where
@@ -394,11 +394,26 @@ void OutputWriter::WriteHeader( ostrm_t& os, Context* ctx ) {
   //  NNNNN = number of bytes
   uint32_t nvars = ctx->outvars.size();
   os.write(reinterpret_cast<const char*>(&nvars), sizeof(nvars));
-  for( auto& var : ctx->outvars ) {
+  for( const auto& var : ctx->outvars ) {
     char type = var->GetType();
     os.write(&type, sizeof(type));
   }
   WriteEvent(os, ctx, true);
+}
+
+//-------------------------------------------------------------
+// Read database, if any
+static int ReadDatabase()
+{
+  int sz = database.Open(cfg.db_file);
+  if( sz < 0 )
+    return sz;
+  if( sz > 0 and debug > 0 ) {
+    cout << "Read " << sz << " parameters from database " << cfg.db_file << endl;
+    if( debug > 1 )
+      database.Print();
+  }
+  return sz;
 }
 
 //-------------------------------------------------------------
@@ -425,14 +440,6 @@ int main( int argc, char* const* argv )
   auto start = HighResClock::now();
   auto init_start = HighResClock::now();
 
-  // Read database, if any
-  database.Open(cfg.db_file);
-  if( auto sz = database.GetSize(); debug > 0 and sz > 0 ) {
-    cout << "Read " << sz << " parameters from database " << cfg.db_file << endl;
-    if( debug > 1 )
-      database.Print();
-  }
-
   // Configure max number of threads to use
   unsigned int hwthreads = tbb::global_control::active_value(
     tbb::global_control::max_allowed_parallelism), nthreads = cfg.nthreads;
@@ -449,6 +456,16 @@ int main( int argc, char* const* argv )
   gDets.push_back( make_unique<DetectorTypeB>("detB", 2));
   gDets.push_back( make_unique<DetectorTypeC>("detC", 3));
 
+  if( ReadDatabase() < 0 )
+    return 1;  // error message already printed
+
+  // Initialize shared analysis object data
+  for( auto& det: gDets ) {
+    if( det->Init(true) != 0 )
+      // Die on failure to initialize (database read error)
+      return 1;
+  }
+
   // Set up thread contexts. Copy analysis objects.
   for( unsigned int i = 0; i<nthreads; ++i ) {
     // Make new context
@@ -456,16 +473,11 @@ int main( int argc, char* const* argv )
     Context& ctx = *ctxPtr;
     // Clone detectors into each new context
     CopyContainer(gDets, ctx.detectors);
-    // Init if necessary
-    //TODO: split up Init:
-    // (1) Read database and all other related things, do before cloning
-    //     detectors
-    // (2) DefineVariables: do in threads
-    if( !ctx.is_init ) {
-      if( ctx.Init() != 0 )
-        // Die on failure to initialize (usually database read error)
-        return 1;
-    }
+    // Init this context
+    assert(!ctx.is_init);
+    if( ctx.Init() != 0 )
+      // Die on failure to initialize. Should not happen, but be safe.
+      return 2;
     contexts.push_back( std::move(ctxPtr) );
   }
   gDets.clear();  // No need to keep the prototype detector objects around

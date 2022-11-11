@@ -135,10 +135,12 @@ int DetectorTypeC::ReadDatabase( bool shared )
   if( status )
     return status;
 
-  // See if the database contains the key "detC.scale".
-  // If so, assign its value to m_scale. Otherwise m_scale = 1.0
-  auto val = database.Get("scale",name);
-  m_scale = val.value_or(1.0);
+  if( shared ) {
+    // See if the database contains the key "detC.scale".
+    // If so, assign its value to m_scale. Otherwise m_scale = 1.0
+    auto val = database.Get("scale", name);
+    m_scale = val.value_or(1.0);
+  }
 
   return 0;
 }
