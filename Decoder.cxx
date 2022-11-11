@@ -21,8 +21,8 @@ int Decoder::Load( evbuf_t* evbuffer )
   Clear();
 
   char* evtp = ((char*)evbuffer)+sizeof(event.header);
-  int ndet = static_cast<int>(event.header.event_info & 0xFFFFU);
-  for( int i = 0; i < ndet; ++i ) {
+  auto ndet = event.header.event_info & 0xFFFFU;
+  for( decltype(ndet) i = 0; i < ndet; ++i ) {
     auto* m = (ModuleData*)evtp;
     if( !m )
       return 3;

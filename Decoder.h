@@ -15,11 +15,11 @@ public:
   int Load( evbuf_t* evbuffer );
   int Preload( evbuf_t* evbuffer );
 
-  [[nodiscard]] int     GetEvSize()  const { return event.header.event_length; }
-  [[nodiscard]] int     GetNdata( int m ) const;
-  [[nodiscard]] double  GetData( int m, int i ) const;
-  [[nodiscard]] double* GetDataBuf( int m ) const;
-  [[nodiscard]] bool    IsSyncEvent() const;
+  [[nodiscard]] uint32_t GetEvSize()  const { return event.header.event_length; }
+  [[nodiscard]] uint32_t GetNdata( int m ) const;
+  [[nodiscard]] double   GetData( uint32_t m, uint32_t i ) const;
+  [[nodiscard]] double*  GetDataBuf( uint32_t m ) const;
+  [[nodiscard]] bool     IsSyncEvent() const;
 
 private:
   Event event;
@@ -29,7 +29,7 @@ private:
 
 
 inline
-int Decoder::GetNdata( int m ) const
+uint32_t Decoder::GetNdata( int m ) const
 {
   if( event.module[m] == nullptr )
     return 0;
@@ -38,14 +38,14 @@ int Decoder::GetNdata( int m ) const
 }
 
 inline
-double Decoder::GetData( int m, int i ) const
+double Decoder::GetData( uint32_t m, uint32_t i ) const
 {
   assert( event.module[m] );
   return event.module[m]->data[i];
 }
 
 inline
-double* Decoder::GetDataBuf( int m ) const
+double* Decoder::GetDataBuf( uint32_t m ) const
 {
   assert( event.module[m] );
   return event.module[m]->data;

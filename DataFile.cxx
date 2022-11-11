@@ -6,11 +6,13 @@
 
 using namespace std;
 
-DataFile::DataFile( string fname ) : filename(move(fname)), filep(nullptr)
+DataFile::DataFile( string fname )
+  : filename{std::move(fname)}
+  , filep{nullptr}
+  , buffer{make_unique<evbuf_t[]>(MAX_EVTSIZE)}
 {
   // Constructor
 
-  buffer = make_unique<evbuf_t[]>(MAX_EVTSIZE);
   buffer[0] = 0;
 }
 
