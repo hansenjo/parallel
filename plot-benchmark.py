@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3.9
 
 import sys
 import numpy as np
@@ -61,6 +61,7 @@ plt.figure(0)
 plt.xlabel('Number of analysis threads')
 plt.ylabel('Analysis Rate (Hz)')
 plt.title('Parallel Podd Prototype Performance Scaling')
+plt.xticks(np.arange(2, 2*ncores + 3, 2))
 
 plt.plot(j, ideal_rate, ".-", label="Ideal rate")
 plt.plot(j, real_rate, ".-", label="Actual rate")
@@ -78,6 +79,7 @@ plt.figure(1)
 plt.title('Parallel Podd Prototype Memory Usage')
 plt.xlabel('Number of analysis threads')
 plt.ylabel("Memory usage (MB)")
+plt.xticks(np.arange(2, 2*ncores + 3, 2))
 plt.plot(j, naive_memusage, ".-", label="Multiprocess memory usage (est.)")
 plt.plot(j, memusage, ".-", label="Multithreaded memory usage (meas.)", color="C1")
 plt.plot(j, fit_memusage, "--r", label="Fit")
