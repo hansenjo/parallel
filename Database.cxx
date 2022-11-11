@@ -19,7 +19,8 @@ using namespace boost::algorithm;
 
 Database database;
 
-Database::Database( const string& filename ) : m_is_ready{false}
+Database::Database( const string& filename )
+  : m_is_ready{false}
 {
   Open(filename);
 }
@@ -32,12 +33,14 @@ void Database::Item::print( ostream& os ) const
 }
 
 // Read database file, if it exists. Add its key/value pairs to internal cache.
-size_t Database::Append( const string& filename )
+int Database::Append( const string& filename )
 {
   ifstream ifs(filename);
   if( ifs ) {
+    int lineno = 0;
     string line;
     while( getline(ifs, line) ) {
+      ++lineno;
       // Blank line or comment?
       if( string::size_type pos = line.find('#'); pos != string::npos )
         line.erase(pos);
@@ -54,17 +57,25 @@ size_t Database::Append( const string& filename )
         ParseDBline(line);
       }
       catch( const bad_db_syntax& e ) {
-        cerr << "Bad database syntax: " << e.what() << endl;
-        return 1;
+        cerr << "Bad database syntax on line " << lineno << ": " << e.what() << endl;
+        return -1;
       }
       catch( const std::exception& e ) {
-        cerr << "Bad database line: " << line << ": " << e.what() << endl;
-        return 1;
+        cerr << "Bad database line " << lineno << ": " << line << ": " << e.what() << endl;
+        return -1;
       }
     }
   }
   m_is_ready = true;
-  return m_items.size();
+  return static_cast<int>(m_items.size());
+}
+
+// Clear database. Deletes all contents.
+void Database::Clear()
+{
+  m_items.clear();
+  m_items.shrink_to_fit();
+  m_is_ready = false;
 }
 
 std::optional<double> Database::Get( const string& key, const string& module,
