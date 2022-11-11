@@ -37,7 +37,7 @@ int Context::Init()
   for( auto& det : detectors ) {
     // Link each of our detectors to our variable list
     det->SetVarList(variables);
-    // Init() calls the detector's ReadDatabase and DefineVariables
+    // Init(shared = false) calls DefineVariables of the Detector
     if( int status = det->Init(false); status != 0 ) {
       err = status;
       cerr << "Error initializing detector " << det->GetName() << endl;
@@ -49,14 +49,16 @@ int Context::Init()
   // Read output definitions & configure output
   outvars.push_back( make_unique<EventNumberVariable>(nev) );
 
-  if( cfg.odef_file.empty() )
+  string ofname = cfg.odef_file;
+  if( ofname.empty() )
     return 2;
 
-  ifstream inp(cfg.odef_file);
+  ifstream inp(ofname);
   if( !inp ) {
-    cerr << "Error opening output definition file " << cfg.odef_file << endl;
+    cerr << "Error opening output definition file " << ofname << endl;
     return 2;
   }
+
   string line;
   while( getline(inp,line) ) {
     // Wildcard match variable names, ignoring trailing comments
@@ -75,7 +77,7 @@ int Context::Init()
 
   if( outvars.empty() ) {
     // Noting to do
-    cerr << "No output variables defined. Check " << cfg.odef_file << endl;
+    cerr << "No output variables defined. Check " << ofname << endl;
     return 3;
   }
 
