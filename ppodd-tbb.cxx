@@ -172,6 +172,19 @@ void get_args(int argc, char* const* argv )
   }
   cfg.input_file = argv[optind];
   cfg.default_names();
+
+  if( compress_output > 0 && cfg.output_file.size() > 3
+      && cfg.output_file.substr(cfg.output_file.size() - 3) != ".gz" )
+    cfg.output_file.append(".gz");
+
+  if( debug > 0 ) {
+    cout << "input_file        = " << cfg.input_file    << endl;
+    cout << "db_file           = " << cfg.db_file       << endl;
+    cout << "odef_file         = " << cfg.odef_file     << endl;
+    cout << "output_file       = " << cfg.output_file   << endl;
+    cout << "compress_output   = " << compress_output   << endl;
+    cout << "ordering mode     = " << mode              << endl;
+  }
 }
 
 //-------------------------------------------------------------
@@ -210,9 +223,7 @@ private:
 
 EventBuffer::EventBuffer() : m_buffer{}, m_bufsiz(0), m_evtnum(0), m_type(0)
 {
-  // TODO
-  //  For simplicity, use a fixed buffer size and the standard allocator
-  //  instead of tbb:scalable_allocator
+  // For simplicity, use a fixed buffer size and the standard allocator
   m_buffer = make_unique<evbuf_t[]>(MAX_EVTSIZE);
 }
 
@@ -235,6 +246,8 @@ private:
   size_t m_bufcount;
   EventBuffer* m_cur;  // Current event read
   tbb::concurrent_queue<EventBuffer*> m_queue;
+
+  void print_exit_info( int status ) const;
 };
 
 EventReader::EventReader( size_t max, const string& filename )
@@ -275,17 +288,8 @@ EventBuffer* EventReader::operator()() {
   }
   if( cfg.mark != 0 && m_count >= cfg.mark )
     cout << endl;
-  if( debug > 0 ) {
-    if( st > 0 )
-      cerr << "Reading input ended with error " << st << endl;
-    else if( st == -1 )
-      cout << "Normal end of file" << endl;
-    else if( st == 0 )
-      cout << "Event limit reached" << endl;
-    else
-      assert(false);
-    cout << "Read " << m_count << " events" << endl;
-  }
+
+  print_exit_info(st);
   return m_cur = nullptr;
 }
 
@@ -300,6 +304,20 @@ void EventReader::print() const {
 
 void EventReader::push( EventBuffer* evt ) {
   m_queue.push(evt);
+}
+
+void EventReader::print_exit_info( int st ) const {
+  if( debug > 0 ) {
+    if( st > 0 )
+      cerr << "Reading input ended with error " << st << endl;
+    else if( st == -1 )
+      cout << "Normal end of file" << endl;
+    else if( st == 0 )
+      cout << "Event limit reached" << endl;
+    else
+      assert(false);
+    cout << "Read " << m_count << " events" << endl;
+  }
 }
 
 EventReader::~EventReader() {
@@ -322,7 +340,6 @@ private:
   void WriteEvent( ostrm_t& os, const Context* ctx, bool do_header = false );
   struct OutFile {
     OutFile() : fLastWritten(0), fHeaderWritten(false) {}
-    ~OutFile() { close(); }
     int open( const string& odat_file ) {
       outp.open(odat_file, ios::out | ios::trunc | ios::binary);
       if( !outp )
@@ -417,62 +434,188 @@ static int ReadDatabase()
 }
 
 //-------------------------------------------------------------
-// Main program
-int main( int argc, char* const* argv )
-{
-  get_args(argc, argv);
-
-  if( debug > 0 ) {
-    cout << "input_file        = " << cfg.input_file    << endl;
-    cout << "db_file           = " << cfg.db_file       << endl;
-    cout << "odef_file         = " << cfg.odef_file     << endl;
-    cout << "output_file       = " << cfg.output_file   << endl;
-    cout << "compress_output   = " << compress_output   << endl;
-    cout << "ordering mode     = " << mode              << endl;
+class ReadOneEvent {
+public:
+  explicit ReadOneEvent( EventReader& evread )
+  : m_evread(evread)
+  {}
+  EventBuffer* operator()(flow_control& fc) {
+    auto* ev = m_evread();
+    if( !ev ||
+        (mode == kPreserveSpecial && ev->is_special()) ) {
+      fc.stop();
+      return nullptr;
+    }
+    return ev;
   }
+private:
+  EventReader& m_evread;
+};
 
-  detlst_t gDets;
-  vector<unique_ptr<Context>> contexts;
+using tuple_t = std::tuple<EventBuffer*, Context*>;
 
-  // Start timers
+//-------------------------------------------------------------
+class ProcessEvent {
+public:
+  explicit ProcessEvent( EventReader& evread )
+  : m_evread(evread)
+  {}
+  Context* operator()(const tuple_t& t ) {
+    auto start = HighResClock::now();
+
+    auto* evtPtr = get<0>(t);
+    auto* ctxPtr = get<1>(t);
+    auto& ctx = *ctxPtr;
+    if( int status = ctx.evdata.Load(evtPtr->get()) ) {
+      cerr << "Decoding error = " << status
+           << " at event " << ctx.nev << endl;
+      goto skip;
+    }
+    ctx.iseq = ctx.nev = evtPtr->evtnum();
+    if( debug > 2 ) {
+      cout << "Loaded event " << ctx.nev
+           << ", context = " << ctx.id
+           << flush << endl;
+    }
+
+    for( auto& det: ctx.detectors ) {
+      det->Clear();
+      if( det->Decode(ctx.evdata) != 0 )
+        goto skip;
+      if( det->Analyze() != 0 )
+        goto skip;
+    }
+
+    // If requested, add random delay
+    if( delay_us > 0 ) {
+      int us = intRand(0, delay_us);
+      std::this_thread::sleep_for(std::chrono::microseconds(2 * us));
+    }
+
+  skip: //TODO: add error status to context, let output skip bad results
+    m_evread.push(evtPtr);
+
+    auto stop = HighResClock::now();
+    ctx.m_time_spent += stop - start;
+
+    return ctxPtr;
+  }
+private:
+  EventReader& m_evread;
+};
+
+//-------------------------------------------------------------
+class OutputEvent {
+public:
+  explicit OutputEvent( OutputWriter& outw )
+    : m_out(outw)
+  {}
+  Context* operator()( Context* ctxPtr ) {
+    if( debug > 2 ) {
+      cout << "Output " << setw(5) << ctxPtr->nev;
+      if( ctxPtr->evdata.IsSyncEvent() )
+        cout << " S ";
+      else
+        cout << "   ";
+      cout << ", context = " << ctxPtr->id
+           << flush << endl;
+    }
+    auto* ret = m_out(ctxPtr);
+    return ret;
+  }
+private:
+  OutputWriter& m_out;
+};
+
+//-------------------------------------------------------------
+class BenchmarkTimer {
+public:
+  BenchmarkTimer()
+    : start{HighResClock::now()}
+    , init_start{HighResClock::now()}
+  {
+    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &start_clock);
+  }
+  void stop_init() {
+    init_duration = HighResClock::now() - init_start;
+  }
+  void stop( const vector<unique_ptr<Context>>& contexts,
+             const OutputWriter& outw ) {
+    run_duration = HighResClock::now() - start;
+    analysis_realtime_sum =
+      std::accumulate(contexts.begin(), contexts.end(), ClockTime_t(),
+                      []( const ClockTime_t& val, const auto& ctx ) -> ClockTime_t {
+                        return val + ctx->m_time_spent;
+                      });
+    output_realtime_sum = outw.time();
+    // Total CPU time
+    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &stop_clock);
+    timespec_diff(&stop_clock, &start_clock, &clock_diff);
+    cpu_usage = std::chrono::seconds(clock_diff.tv_sec)
+                + std::chrono::nanoseconds(clock_diff.tv_nsec);
+
+  }
+  void print() const {
+    cout << "Timing analysis:" << endl;
+    cout << "Init:      " << init_duration.count()         << " ms" << endl;
+    cout << "Analysis:  " << analysis_realtime_sum.count() << " ms" << endl;
+    cout << "Output:    " << output_realtime_sum.count()   << " ms" << endl;
+    cout << "Total CPU: " << cpu_usage.count()             << " ms" << endl;
+    cout << "Real:      " << run_duration.count()          << " ms" << endl;
+  };
+private:
   timespec start_clock{}, stop_clock{}, clock_diff{};
-  clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &start_clock);
-  auto start = HighResClock::now();
-  auto init_start = HighResClock::now();
+  HighResClock::time_point start;
+  HighResClock::time_point init_start;
+  ClockTime_t init_duration{};
+  ClockTime_t run_duration{};
+  ClockTime_t analysis_realtime_sum{};
+  ClockTime_t output_realtime_sum{};
+  ClockTime_t cpu_usage{};
+};
 
-  // Configure max number of threads to use
+//-------------------------------------------------------------
+unsigned int SetNThreads()
+{
   unsigned int hwthreads = tbb::global_control::active_value(
-    tbb::global_control::max_allowed_parallelism), nthreads = cfg.nthreads;
+    tbb::global_control::max_allowed_parallelism);
+  unsigned int nthreads = cfg.nthreads;
   if( nthreads > 2 * hwthreads )
     nthreads = 2 * hwthreads;
   if( nthreads == 0 )
     nthreads = (hwthreads > 1) ? hwthreads : 1;
-  if( debug > 0 )
-    cout << "Initializing " << nthreads << " analysis threads" << endl;
   tbb::global_control gblctl(tbb::global_control::max_allowed_parallelism, nthreads);
+  return nthreads;
+}
 
-  // Set up analysis objects
-  gDets.push_back( make_unique<DetectorTypeA>("detA", 1));
-  gDets.push_back( make_unique<DetectorTypeB>("detB", 2));
-  gDets.push_back( make_unique<DetectorTypeC>("detC", 3));
-
-  if( ReadDatabase() < 0 )
-    return 1;  // error message already printed
+//-------------------------------------------------------------
+int MakeDets( detlst_t& detlst )
+{
+  detlst.push_back( make_unique<DetectorTypeA>("detA", 1));
+  detlst.push_back( make_unique<DetectorTypeB>("detB", 2));
+  detlst.push_back( make_unique<DetectorTypeC>("detC", 3));
 
   // Initialize shared analysis object data
-  for( auto& det: gDets ) {
+  for( auto& det: detlst ) {
     if( det->Init(true) != 0 )
       // Die on failure to initialize (database read error)
       return 1;
   }
+  return 0;
+}
 
-  // Set up thread contexts. Copy analysis objects.
-  for( unsigned int i = 0; i<nthreads; ++i ) {
+//-------------------------------------------------------------
+int MakeContexts( vector<unique_ptr<Context>>& contexts,
+                  unsigned int nthreads, const detlst_t& detlst )
+{
+  contexts.clear();
+  contexts.reserve(nthreads);
+  for( decltype(nthreads) i = 0; i < nthreads; ++i ) {
     // Make new context
     auto ctxPtr = make_unique<Context>(i);
     Context& ctx = *ctxPtr;
     // Clone detectors into each new context
-    CopyContainer(gDets, ctx.detectors);
+    CopyContainer(detlst, ctx.detectors);
     // Init this context
     assert(!ctx.is_init);
     if( ctx.Init() != 0 )
@@ -480,101 +623,60 @@ int main( int argc, char* const* argv )
       return 2;
     contexts.push_back( std::move(ctxPtr) );
   }
+  return 0;
+}
+
+//-------------------------------------------------------------
+// Main program
+int main( int argc, char* const* argv )
+{
+  get_args(argc, argv);
+
+  // Start timers
+  BenchmarkTimer timer;
+
+  // Configure max number of threads to use
+  auto nthreads = SetNThreads();
+  if( debug > 0 )
+    cout << "Initializing " << nthreads << " analysis threads" << endl;
+
+  if( ReadDatabase() < 0 )
+    return 1;  // error message already printed
+
+  // Set up analysis objects
+  detlst_t gDets;
+  if( MakeDets(gDets) != 0 )
+    return 1;
+
+  // Set up thread contexts. Copy analysis objects.
+  vector<unique_ptr<Context>> contexts;
+  if( MakeContexts( contexts, nthreads, gDets ) != 0 )
+    return 2;
   gDets.clear();  // No need to keep the prototype detector objects around
 
-  // Prepare input
-  EventReader eventReader(cfg.nev_max, cfg.input_file);
-
-  // Configure output
-  if( compress_output > 0 && cfg.output_file.size() > 3
-      && cfg.output_file.substr(cfg.output_file.size() - 3) != ".gz" )
-    cfg.output_file.append(".gz");
-
-  OutputWriter outputWriter(cfg.output_file);
-
   // Set up TBB flow graph nodes
-  using tuple_t = tuple<EventBuffer*, Context*>;
-
   tbb::flow::graph g;
-
   join_node < tuple_t, reserving > j(g);
-
   buffer_node<Context*> free_ctx(g);
 
+  // Input
+  EventReader eventReader(cfg.nev_max, cfg.input_file);
   input_node<EventBuffer*>
-    read_input(g,
-               [&]( flow_control& fc ) -> EventBuffer* {
-                 auto* ev = eventReader();
-                 if( !ev ||
-                     (mode == kPreserveSpecial && ev->is_special()) ) {
-                   fc.stop();
-                   return nullptr;
-                 }
-                 return ev;
-               });
+    read_input(g, ReadOneEvent(eventReader));
 
+  // Parallel processing of events in flight
   function_node<tuple_t, Context*>
-    process(g, unlimited,
-            [&]( const tuple_t& t ) -> Context* {
-              auto start = HighResClock::now();
+    process(g, unlimited, ProcessEvent(eventReader));
 
-              auto* evtPtr = get<0>(t);
-              auto* ctxPtr = get<1>(t);
-              auto& ctx = *ctxPtr;
-              if( int status = ctx.evdata.Load(evtPtr->get()) ) {
-                cerr << "Decoding error = " << status
-                     << " at event " << ctx.nev << endl;
-                goto skip;
-              }
-//              ctx.iseq = ctx.nev = evtPtr->evtnum();
-//              cout << "Loaded event " << ctx.nev
-//                   << ", context = " << ctx.id
-//                   << flush << endl;
-
-              for( auto& det: ctx.detectors ) {
-                det->Clear();
-                if( det->Decode(ctx.evdata) != 0 )
-                  goto skip;
-                if( det->Analyze() != 0 )
-                  goto skip;
-              }
-
-              // If requested, add random delay
-              if( delay_us > 0 ) {
-                int us = intRand(0, delay_us);
-                std::this_thread::sleep_for(std::chrono::microseconds(2 * us));
-              }
-
-            skip: //TODO: add error status to context, let output skip bad results
-              eventReader.push(evtPtr);
-
-              auto stop = HighResClock::now();
-              ctx.m_time_spent += stop - start;
-
-              return ctxPtr;
-            });
-
+  // Sequential output
+  OutputWriter outputWriter(cfg.output_file);
   function_node<Context*, Context*>
-    out(g, serial,
-        [&]( Context* ctxPtr ) -> Context* {
-//          cout << "Output " << setw(5) << ctxPtr->nev;
-//          if( ctxPtr->evtype() )
-//            cout << " S ";
-//          else
-//            cout << "   ";
-//          cout << ", context = " << ctxPtr->id
-//               << flush << endl;
-          auto* ret = outputWriter(ctxPtr);
-          return ret;
-        });
+    out(g, serial, OutputEvent(outputWriter));
 
-  sequencer_node<Context*>
-    seq(g,
-        []( const Context* ctx ) -> size_t {
-          return ctx->nev - 1;  // Sequence must start at 0
-        });
-
-  read_input.activate();
+  // Sequencer for event ordering
+  sequencer_node<Context*> seq(g, []( const Context* ctx ) -> size_t {
+    return ctx->nev - 1;   // Sequence must start at 0
+  });
 
   // Build the graph
   make_edge(free_ctx, input_port<1>(j));
@@ -591,13 +693,14 @@ int main( int argc, char* const* argv )
     free_ctx.try_put(ctxPtr.get());
   }
 
-  ClockTime_t init_duration = HighResClock::now() - init_start;
+  timer.stop_init();
 
   if( debug > 0 )
     cout << "Starting event loop, nev_max = " << cfg.nev_max << endl;
 
   if( mode != kPreserveSpecial ) {
     make_edge(read_input, input_port<0>(j));
+    read_input.activate();
     g.wait_for_all();
 
   } else {
@@ -621,23 +724,8 @@ int main( int argc, char* const* argv )
     eventReader.print();
 
   // Total wall times
-  ClockTime_t run_duration = HighResClock::now() - start;
-  ClockTime_t analysis_realtime_sum =
-    std::accumulate(contexts.begin(), contexts.end(), ClockTime_t(),
-                    []( const ClockTime_t& val, const auto& ctx ) -> ClockTime_t {
-                      return val + ctx->m_time_spent;
-                    });
-  ClockTime_t output_realtime_sum = outputWriter.time();
-  // Total CPU time
-  clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &stop_clock);
-  timespec_diff( &stop_clock, &start_clock, &clock_diff );
-  ClockTime_t cpu_usage( std::chrono::seconds(clock_diff.tv_sec) +
-                         std::chrono::nanoseconds(clock_diff.tv_nsec) );
-  cout << "Timing analysis:" << endl;
-  cout << "Init:      " << init_duration.count()         << " ms" << endl;
-  cout << "Analysis:  " << analysis_realtime_sum.count() << " ms" << endl;
-  cout << "Output:    " << output_realtime_sum.count()   << " ms" << endl;
-  cout << "Total CPU: " << cpu_usage.count()             << " ms" << endl;
-  cout << "Real:      " << run_duration.count()          << " ms" << endl;
+  timer.stop(contexts, outputWriter);
+  timer.print();
+
   return 0;
 }
