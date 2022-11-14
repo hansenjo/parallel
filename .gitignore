@@ -11,6 +11,7 @@ lib*.dylib*
 # Generated files
 *.odat
 *.out.gz
+*.out.xz
 *.out
 *.pdf
 ppodd
