@@ -80,7 +80,7 @@ private:
 
   bool m_is_ready{false};  // True if database successfully read
 
-  int  ParseDBkey( const std::string& line, Item& item ) const;
+  static int ParseDBkey( const std::string& line, Item& item );
   void ParseDBline( const std::string& line );
   bool Set( Item& item );
 };

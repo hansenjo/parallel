@@ -15,12 +15,12 @@ class Decoder;
 class DetectorTypeC : public Detector {
 public:
   DetectorTypeC( const std::string& name, int imod );
-  virtual ~DetectorTypeC();
+  ~DetectorTypeC() override;
 
-  virtual void Clear();
-  [[nodiscard]] virtual std::unique_ptr<Detector> Clone() const;
-  virtual int  Analyze();
-  virtual void Print() const;
+  void Clear() override;
+  [[nodiscard]] std::unique_ptr<Detector> Clone() const override;
+  int  Analyze() override;
+  void Print() const override;
 
 protected:
   std::vector<int> m_a;       // Workspace
@@ -29,8 +29,8 @@ protected:
   double           m_last5;   // Last 5 digits of result (for illustration)
   double           m_scale;   // Scale factor for number of digits input value
 
-  virtual int  DefineVariables( bool remove );
-  virtual int  ReadDatabase( bool shared );
+  int  DefineVariables( bool remove ) override;
+  int  ReadDatabase( bool shared ) override;
 };
 
 #endif

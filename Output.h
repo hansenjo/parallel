@@ -26,9 +26,9 @@ class PlainVariable : public OutputElement {
 public:
   explicit PlainVariable( Variable* var ) : fVar(var) {}
 
-  [[nodiscard]] virtual const std::string& GetName() const;
-  [[nodiscard]] virtual char GetType() const { return (2<<5)+sizeof(double); }
-  virtual ostrm_t& write( ostrm_t& os, bool headerinfo ) const;
+  [[nodiscard]] const std::string& GetName() const override;
+  [[nodiscard]] char GetType() const override { return (2<<5)+sizeof(double); }
+  ostrm_t& write( ostrm_t& os, bool headerinfo ) const override;
 
 private:
   Variable* fVar;
@@ -38,9 +38,9 @@ class EventNumberVariable : public OutputElement {
 public:
   explicit EventNumberVariable( const int& nev ) : fNev(nev) {}
 
-  [[nodiscard]] virtual const std::string& GetName() const { return fName; }
-  [[nodiscard]] virtual char GetType() const { return sizeof(int); }
-  virtual ostrm_t& write( ostrm_t& os, bool headerinfo ) const;
+  [[nodiscard]] const std::string& GetName() const override { return fName; }
+  [[nodiscard]] char GetType() const override { return sizeof(int); }
+  ostrm_t& write( ostrm_t& os, bool headerinfo ) const override;
 
 private:
   static const std::string fName;

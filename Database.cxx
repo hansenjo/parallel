@@ -148,7 +148,7 @@ void Database::Print( ostream& os ) const
 
 // Parse the full key into module.key parts.
 // Returns the number of components found between dots.
-int Database::ParseDBkey( const string& fullkey, Item& item ) const
+int Database::ParseDBkey( const string& fullkey, Item& item )
 {
   char_separator<char> dot(".");
   tokenizer<char_separator<char>> parts(fullkey, dot);

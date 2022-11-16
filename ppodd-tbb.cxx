@@ -336,8 +336,8 @@ public:
   Context* operator()( Context* ctxPtr );
   ClockTime_t time() const { return m_time_spent; }
 private:
-  void WriteHeader( ostrm_t& os, const Context* ctx );
-  void WriteEvent( ostrm_t& os, const Context* ctx, bool do_header = false );
+  static void WriteHeader( ostrm_t& os, const Context* ctx );
+  static void WriteEvent( ostrm_t& os, const Context* ctx, bool do_header = false );
   struct OutFile {
     OutFile() : fLastWritten(0), fHeaderWritten(false) {}
     int open( const string& odat_file ) {

@@ -12,13 +12,13 @@ class Decoder;
 class DetectorTypeA : public Detector {
 public:
   DetectorTypeA( const std::string& name, int imod );
-  virtual ~DetectorTypeA();
+  ~DetectorTypeA() override;
 
-  virtual void Clear();
-  [[nodiscard]] virtual std::unique_ptr<Detector> Clone() const;
-  virtual int  Decode( Decoder& evdata );
-  virtual int  Analyze();
-  virtual void Print() const;
+  void Clear() override;
+  [[nodiscard]] std::unique_ptr<Detector> Clone() const override;
+  int  Decode( Decoder& evdata ) override;
+  int  Analyze() override;
+  void Print() const override;
 
 protected:
   // Statistics results
@@ -29,7 +29,7 @@ protected:
   double mean{};
   double geom{};
 
-  virtual int  DefineVariables( bool remove );
+  int  DefineVariables( bool remove ) override;
 };
 
 #endif

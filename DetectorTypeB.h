@@ -12,12 +12,12 @@ class Decoder;
 class DetectorTypeB : public Detector {
 public:
   DetectorTypeB( const std::string& name, int imod );
-  virtual ~DetectorTypeB();
+  ~DetectorTypeB() override;
 
-  virtual void Clear();
-  [[nodiscard]] virtual std::unique_ptr<Detector> Clone() const;
-  virtual int  Analyze();
-  virtual void Print() const;
+  void Clear() override;
+  [[nodiscard]] std::unique_ptr<Detector> Clone() const override;
+  int  Analyze() override;
+  void Print() const override;
 
 protected:
   // Fit results
@@ -29,7 +29,7 @@ protected:
   double ndof{};
   double chi2{};
 
-  virtual int  DefineVariables( bool remove );
+  int  DefineVariables( bool remove ) override;
 };
 
 #endif
