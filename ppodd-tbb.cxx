@@ -2,7 +2,6 @@
 
 #include "Podd.h"
 #include "DataFile.h"
-//#include "Decoder.h"
 #include "DetectorTypeA.h"
 #include "DetectorTypeB.h"
 #include "DetectorTypeC.h"
@@ -432,21 +431,6 @@ void OutputWriter::WriteHeader( ostrm_t& os, const Context* const ctx ) {
 }
 
 //-------------------------------------------------------------
-// Read database, if any
-static int ReadDatabase()
-{
-  int sz = database.Open(cfg.db_file);
-  if( sz < 0 )
-    return sz;
-  if( sz > 0 and debug > 0 ) {
-    cout << "Read " << sz << " parameters from database " << cfg.db_file << endl;
-    if( debug > 1 )
-      database.Print();
-  }
-  return sz;
-}
-
-//-------------------------------------------------------------
 class ReadOneEvent {
 public:
   explicit ReadOneEvent( EventReader& evread )
@@ -586,6 +570,21 @@ private:
   ClockTime_t output_realtime_sum{};
   ClockTime_t cpu_usage{};
 };
+
+//-------------------------------------------------------------
+// Read database, if any
+static int ReadDatabase()
+{
+  int sz = database.Open(cfg.db_file);
+  if( sz < 0 )
+    return sz;
+  if( sz > 0 and debug > 0 ) {
+    cout << "Read " << sz << " parameters from database " << cfg.db_file << endl;
+    if( debug > 1 )
+      database.Print();
+  }
+  return sz;
+}
 
 //-------------------------------------------------------------
 unsigned int SetNThreads()
