@@ -719,17 +719,16 @@ int main( int argc, char* const* argv )
     queue_node<EventBuffer*> evtqueue(g);
     make_edge(evtqueue, input_port<0>(j));
     make_edge(read_input, input_port<0>(j));
-    EventBuffer* ev;
-    do {
+    for( ;; ) {
       read_input.activate();
       g.wait_for_all();
 
-      ev = eventReader.get();
-      if( ev ) {
-        evtqueue.try_put(ev);
-        g.wait_for_all();
-      }
-    } while( ev );
+      auto* ev = eventReader.get();
+      if( !ev )
+        break;
+      evtqueue.try_put(ev);
+      g.wait_for_all();
+    }
   }
 
   if( debug > 0 )
