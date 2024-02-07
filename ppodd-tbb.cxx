@@ -52,6 +52,13 @@ enum Mode { kUnordered, kPreserveSpecial, kOrdered };
 Mode mode = kUnordered;
 
 //-------------------------------------------------------------
+class file_io_error : public std::runtime_error {
+public:
+  explicit file_io_error( const std::string& what_arg )
+    : std::runtime_error(what_arg) {}
+};
+
+//-------------------------------------------------------------
 // Set any unset filenames to defaults (= input file name + extension)
 void Config::default_names() {
   // If not given, set defaults for odef, db and output files
@@ -247,10 +254,16 @@ EventReader::EventReader( size_t max, const string& filename, unsigned int mark 
   , m_bufcount(0)
   , m_mark(mark)
   , m_cur(nullptr)
-{}
+{
+  if( m_inp.Open() != 0 ) {
+    ostringstream ostr;
+    ostr << "Cannot open input " << filename;
+    throw file_io_error(ostr.str());
+  }
+}
 
 EventBuffer* EventReader::operator()() {
-  if( (!m_inp.IsOpen() && m_inp.Open() != 0) )
+  if( !m_inp.IsOpen() )
     return m_cur = nullptr;
 
   int st = 0;
