@@ -351,51 +351,52 @@ private:
   static void WriteHeader( ostrm_t& os, const Context* ctx );
   static void WriteEvent( ostrm_t& os, const Context* ctx, bool do_header = false );
   struct OutFile {
-    OutFile() : fLastWritten(0), fHeaderWritten(false) {}
+    OutFile() : m_last_written(0), m_header_written(false) {}
     int open( const string& odat_file ) {
-      outp.open(odat_file, ios::out | ios::trunc | ios::binary);
-      if( !outp )
+      m_outp.open(odat_file, ios::out | ios::trunc | ios::binary);
+      if( !m_outp )
         return 1;
       if( compress_output > 0 )
-        outs.push(gzip_compressor());
-      outs.push(outp);
+        m_ostrm.push(gzip_compressor());
+      m_ostrm.push(m_outp);
       return 0;
     }
     void close() {
-      outs.reset();
-      outp.close();
+      m_ostrm.reset();
+      m_outp.close();
     }
-    ofstream outp;
-    ostrm_t outs;
-    size_t fLastWritten;
-    bool fHeaderWritten;
+    ofstream m_outp;
+    ostrm_t m_ostrm;
+    size_t m_last_written;
+    bool m_header_written;
   } __attribute__((aligned(128)));
 
-  OutFile fOutFile;
+  OutFile m_out_file;
   ClockTime_t m_time_spent;
 };
 
 OutputWriter::OutputWriter( const string& odat_file )
   : m_time_spent() {
   // Open output file and set up filter chain
-  if( fOutFile.open(odat_file) != 0 ) {
-    cerr << "Error opening output data file " << odat_file << endl;
-    return; // TODO: throw exception
+  if( m_out_file.open(odat_file) != 0 ) {
+    ostringstream ostr;
+    ostr << "Error opening output data file " << odat_file;
+    throw file_io_error(ostr.str());
   }
 }
 
 Context* OutputWriter::operator()( Context* ctxPtr ) {
   auto start = HighResClock::now();
-  ofstream& outp = fOutFile.outp;
-  ostrm_t& outs = fOutFile.outs;
+  ofstream& outp = m_out_file.m_outp;
+  ostrm_t& outs = m_out_file.m_ostrm;
 
   if( !outp.good() || !outs.good() )
     // TODO: handle errors properly
     goto skip;
 
-  if( !fOutFile.fHeaderWritten ) {
+  if( !m_out_file.m_header_written ) {
     WriteHeader(outs, ctxPtr);
-    fOutFile.fHeaderWritten = true;
+    m_out_file.m_header_written = true;
   }
   WriteEvent(outs, ctxPtr);
 skip:
