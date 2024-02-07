@@ -434,10 +434,10 @@ void OutputWriter::WriteHeader( ostrm_t& os, const Context* const ctx ) {
 class ReadOneEvent {
 public:
   explicit ReadOneEvent( EventReader& evread )
-  : m_evread(evread)
+  : m_evread(&evread)
   {}
   EventBuffer* operator()(flow_control& fc) {
-    auto* ev = m_evread();
+    auto* ev = (*m_evread)();
     if( !ev ||
         (mode == kPreserveSpecial && ev->is_special()) ) {
       fc.stop();
@@ -446,7 +446,7 @@ public:
     return ev;
   }
 private:
-  EventReader& m_evread;
+  EventReader* m_evread;
 };
 
 using tuple_t = std::tuple<EventBuffer*, Context*>;
@@ -455,7 +455,7 @@ using tuple_t = std::tuple<EventBuffer*, Context*>;
 class ProcessEvent {
 public:
   explicit ProcessEvent( EventReader& evread )
-  : m_evread(evread)
+  : m_evread(&evread)
   {}
   Context* operator()(const tuple_t& t ) {
     auto start = HighResClock::now();
@@ -490,7 +490,7 @@ public:
     }
 
   skip: //TODO: add error status to context, let output skip bad results
-    m_evread.push(evtPtr);
+    (*m_evread).push(evtPtr);
 
     auto stop = HighResClock::now();
     ctx.m_time_spent += stop - start;
@@ -498,14 +498,14 @@ public:
     return ctxPtr;
   }
 private:
-  EventReader& m_evread;
+  EventReader* m_evread;
 };
 
 //-------------------------------------------------------------
 class OutputEvent {
 public:
   explicit OutputEvent( OutputWriter& outw )
-    : m_out(outw)
+    : m_out(&outw)
   {}
   Context* operator()( Context* ctxPtr ) {
     if( debug > 2 ) {
@@ -517,11 +517,11 @@ public:
       cout << ", context = " << ctxPtr->id
            << flush << endl;
     }
-    auto* ret = m_out(ctxPtr);
+    auto* ret = (*m_out)(ctxPtr);
     return ret;
   }
 private:
-  OutputWriter& m_out;
+  OutputWriter* m_out;
 };
 
 //-------------------------------------------------------------
