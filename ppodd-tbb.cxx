@@ -188,18 +188,6 @@ void get_args(int argc, char* const* argv )
 }
 
 //-------------------------------------------------------------
-static void mark_progress( size_t nev )
-{
-  if( cfg.mark != 0 ) {
-    if( (nev % cfg.mark) == 0 ) {
-      if( nev > cfg.mark )
-        cout << "..";
-      cout << nev << flush;
-    }
-  }
-}
-
-//-------------------------------------------------------------
 // Wrapper object around event buffer. Includes metadata about the
 // buffer contents
 class EventBuffer {
@@ -231,7 +219,7 @@ EventBuffer::EventBuffer() : m_buffer{}, m_bufsiz(0), m_evtnum(0), m_type(0)
 //-------------------------------------------------------------
 class EventReader {
 public:
-  explicit EventReader( size_t max, const string& filename );
+  EventReader( size_t max, const string& filename, unsigned int mark = 100 );
   ~EventReader();
   EventBuffer* operator()();
   [[nodiscard]] EventBuffer* get() const { return m_cur; }
@@ -244,17 +232,20 @@ private:
   size_t m_max;
   size_t m_count;
   size_t m_bufcount;
+  unsigned int m_mark;
   EventBuffer* m_cur;  // Current event read
   tbb::concurrent_queue<EventBuffer*> m_queue;
 
   void print_exit_info( int status ) const;
+  void mark_progress() const;
 };
 
-EventReader::EventReader( size_t max, const string& filename )
+EventReader::EventReader( size_t max, const string& filename, unsigned int mark )
   : m_inp(filename)
   , m_max(max)
   , m_count(0)
   , m_bufcount(0)
+  , m_mark(mark)
   , m_cur(nullptr)
 {}
 
@@ -277,16 +268,12 @@ EventBuffer* EventReader::operator()() {
       m_cur->set(evsiz, m_count, type);
       std::swap(m_cur->getptr(), m_inp.GetEvBuffer());
       assert(m_cur->size() == evsiz);
-
-      if( debug > 1 )
-        cout << "Event " << m_count << endl;
-      else
-        mark_progress(m_count);
+      mark_progress();
 
       return m_cur;
     }
   }
-  if( cfg.mark != 0 && m_count >= cfg.mark )
+  if( m_mark != 0 && m_count >= m_mark )
     cout << endl;
 
   print_exit_info(st);
@@ -317,6 +304,18 @@ void EventReader::print_exit_info( int st ) const {
     else
       assert(false);
     cout << "Read " << m_count << " events" << endl;
+  }
+}
+
+void EventReader::mark_progress() const {
+  if( debug > 1 )
+    cout << "Event " << m_count << endl;
+  else if( m_mark != 0 ) {
+    if( (m_count % m_mark) == 0 ) {
+      if( m_count > m_mark )
+        cout << "..";
+      cout << m_count << flush;
+    }
   }
 }
 
